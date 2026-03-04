@@ -77,7 +77,8 @@
               "api/models/session",
               "api/models/transaction",
               "api/models/product",
-              "api/models/portfolio"
+              "api/models/portfolio",
+              "api/models/setting"
             ]
           },
           {

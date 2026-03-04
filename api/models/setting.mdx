@@ -1,0 +1,138 @@
+---
+title: Setting Model
+description: Key-value storage for application configuration and system settings
+icon: gear
+---
+
+## Overview
+
+The `Setting` model provides a simple key-value store for application configuration data. It's used internally by the system to persist settings like the master code hash, theme preferences, and other configuration options.
+
+<Info>
+  This model is primarily used by internal services. Most settings should be managed through the admin interface rather than direct database access.
+</Info>
+
+## Database Schema
+
+```python data/models/setting.py
+from sqlalchemy import String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from data.db.base import Base
+
+class Setting(Base):
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+```
+
+## Fields
+
+<ParamField path="key" type="str" required>
+  Setting identifier (primary key)
+  
+  **Max length:** 60 characters
+  
+  **Common keys:**
+  - `MASTER_CODE_HASH` - Hashed master code for assistant elevation
+  - `theme` - UI theme preference (light/dark)
+  - `last_backup_at` - Timestamp of last automatic backup
+</ParamField>
+
+<ParamField path="value" type="str" required>
+  Setting value stored as text
+  
+  Values can be strings, JSON, timestamps, or hashed passwords depending on the key.
+</ParamField>
+
+## Usage Examples
+
+### Reading Settings
+
+```python
+from data.db.session import SessionLocal
+from data.models.setting import Setting
+
+db = SessionLocal()
+setting = db.query(Setting).filter(Setting.key == "theme").first()
+if setting:
+    theme = setting.value
+    print(f"Current theme: {theme}")
+db.close()
+```
+
+### Writing Settings
+
+```python
+from data.db.session import SessionLocal
+from data.models.setting import Setting
+
+db = SessionLocal()
+
+# Update or create setting
+setting = db.query(Setting).filter(Setting.key == "theme").first()
+if setting:
+    setting.value = "dark"
+else:
+    setting = Setting(key="theme", value="dark")
+    db.add(setting)
+
+db.commit()
+db.close()
+```
+
+## Used By
+
+The Setting model is accessed by:
+
+- **Permissions Service** - Stores and validates master code hash
+- **Theme Management** - Persists user theme preferences
+- **Backup Service** - Tracks last backup timestamp
+
+<Warning>
+  Never store sensitive data like passwords in plain text. Always use proper hashing (bcrypt) for security-sensitive values like `MASTER_CODE_HASH`.
+</Warning>
+
+## Database Operations
+
+### Get Setting Value
+
+```python
+def get_setting(key: str) -> str | None:
+    """Retrieve a setting value by key."""
+    db = SessionLocal()
+    try:
+        setting = db.query(Setting).filter(Setting.key == key).first()
+        return setting.value if setting else None
+    finally:
+        db.close()
+```
+
+### Set Setting Value
+
+```python
+def set_setting(key: str, value: str) -> None:
+    """Create or update a setting."""
+    db = SessionLocal()
+    try:
+        setting = db.query(Setting).filter(Setting.key == key).first()
+        if setting:
+            setting.value = value
+        else:
+            setting = Setting(key=key, value=value)
+            db.add(setting)
+        db.commit()
+    finally:
+        db.close()
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Permissions Service" icon="lock" href="/api/services/permissions">
+    Master code storage and validation
+  </Card>
+  <Card title="Admin Role" icon="shield-halved" href="/roles/admin">
+    Admin settings management capabilities
+  </Card>
+</CardGroup>
