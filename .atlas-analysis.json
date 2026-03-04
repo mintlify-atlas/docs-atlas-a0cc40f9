@@ -1,0 +1,114 @@
+{
+  "projectType": "saas",
+  "projectName": "Tattoo Studio Manager",
+  "projectDescription": "Complete desktop management system for tattoo studios with client management, scheduling, portfolio tracking, inventory control, and financial reporting",
+  "theme": "willow",
+  "primaryColor": "#1a1a1a",
+  "lightColor": "#e74c3c",
+  "darkColor": "#c0392b",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quick-start"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/client-management",
+              "features/appointment-scheduling",
+              "features/artist-portfolios",
+              "features/financial-tracking",
+              "features/inventory-management"
+            ]
+          },
+          {
+            "group": "User Roles",
+            "pages": [
+              "roles/overview",
+              "roles/admin",
+              "roles/assistant",
+              "roles/artist",
+              "roles/permissions"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/first-time-setup",
+              "guides/client-onboarding",
+              "guides/managing-appointments",
+              "guides/portfolio-management",
+              "guides/inventory-tracking",
+              "guides/financial-reports",
+              "guides/backup-restore"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Data Models",
+            "pages": [
+              "api/models/client",
+              "api/models/artist",
+              "api/models/user",
+              "api/models/session",
+              "api/models/transaction",
+              "api/models/product",
+              "api/models/portfolio"
+            ]
+          },
+          {
+            "group": "Services",
+            "pages": [
+              "api/services/auth",
+              "api/services/permissions",
+              "api/services/backups",
+              "api/services/sessions"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "api/database/session",
+              "api/database/migrations"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Client management with health records and consent tracking",
+    "Appointment scheduling with multi-artist calendar",
+    "Artist portfolio management with image categorization",
+    "Financial tracking with commission calculation",
+    "Inventory management with stock alerts",
+    "Role-based access control with three user types",
+    "Automatic database backups",
+    "Dark and light theme support"
+  ],
+  "publicApiSurface": [
+    "Client model with contact info, health data, and preferences",
+    "Artist model with commission rates and portfolio",
+    "TattooSession model with scheduling and pricing",
+    "Transaction model with payment tracking",
+    "Product model for inventory management",
+    "PortfolioItem model with metadata and associations",
+    "User model with role-based authentication",
+    "Authentication service (hash_password, verify_password, authenticate)",
+    "Permissions service (RBAC with can, enforce, elevate_for)",
+    "Backup service (create_backup_now, restore_backup, list_backups)",
+    "Session management (get_session, begin_session, complete_session)"
+  ]
+}
