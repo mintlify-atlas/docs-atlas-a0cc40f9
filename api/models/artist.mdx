@@ -1,0 +1,177 @@
+---
+title: 'Artist Model'
+description: 'Artist data model with commission rates and portfolio management'
+---
+
+## Overview
+
+The `Artist` model represents a tattoo artist in the studio with commission rate configuration and relationships to sessions and portfolio items.
+
+## Model Definition
+
+```python
+from sqlalchemy import String, Float, Boolean
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+class Artist(Base):
+    __tablename__ = "artists"
+```
+
+## Fields
+
+### Primary Key
+
+<ResponseField name="id" type="int" required>
+  Unique identifier for the artist (auto-increment)
+</ResponseField>
+
+### Artist Information
+
+<ResponseField name="name" type="str" required>
+  Artist's name or stage name
+  
+  **Length:** Maximum 120 characters
+  
+  **Indexed:** Yes, for fast lookups
+</ResponseField>
+
+<ResponseField name="rate_commission" type="float" default="0.50">
+  Commission rate for the artist (0.0 to 1.0)
+  
+  **Default:** 0.50 (50% commission)
+  
+  **Example:** 0.50 means the artist receives 50% of session revenue
+</ResponseField>
+
+<ResponseField name="active" type="bool" default="true">
+  Whether the artist is currently active in the studio
+</ResponseField>
+
+## Relationships
+
+<ResponseField name="sessions" type="List[TattooSession]">
+  List of all tattoo sessions assigned to this artist
+  
+  **Relationship:** One-to-Many with TattooSession
+  
+  **Back Populates:** `artist` on TattooSession model
+</ResponseField>
+
+<ResponseField name="portfolio_items" type="List[PortfolioItem]">
+  List of portfolio items (images) associated with this artist
+  
+  **Relationship:** One-to-Many with PortfolioItem
+  
+  **Cascade:** `all, delete-orphan` - portfolio items are deleted when artist is deleted
+  
+  **Back Populates:** `artist` on PortfolioItem model
+</ResponseField>
+
+<ResponseField name="preferred_clients" type="List[Client]">
+  List of clients who have this artist as their preferred artist
+  
+  **Relationship:** Backref from Client.preferred_artist
+  
+  **Foreign Key:** Client.preferred_artist_id → Artist.id
+</ResponseField>
+
+## Database Schema
+
+```sql
+CREATE TABLE artists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(120) NOT NULL,
+    rate_commission FLOAT DEFAULT 0.50,
+    active BOOLEAN DEFAULT 1
+);
+
+CREATE INDEX ix_artists_name ON artists(name);
+```
+
+## Usage Examples
+
+### Create a New Artist
+
+```python
+from data.models.artist import Artist
+
+# Create artist with default commission rate
+artist = Artist(
+    name="Luna Martinez",
+    active=True
+)
+db.add(artist)
+db.commit()
+
+# Create artist with custom commission rate
+artist = Artist(
+    name="Alex Chen",
+    rate_commission=0.60,  # 60% commission
+    active=True
+)
+db.add(artist)
+db.commit()
+```
+
+### Query Artist with Sessions
+
+```python
+from data.models.artist import Artist
+from sqlalchemy.orm import Session
+
+# Get artist with all sessions
+artist = db.query(Artist).filter(Artist.id == 1).first()
+
+print(f"Artist: {artist.name}")
+print(f"Commission Rate: {artist.rate_commission * 100}%")
+print(f"Total Sessions: {len(artist.sessions)}")
+print(f"Portfolio Items: {len(artist.portfolio_items)}")
+
+# Calculate total revenue
+total_revenue = sum(session.price for session in artist.sessions)
+artist_earnings = total_revenue * artist.rate_commission
+
+print(f"Total Revenue: ${total_revenue:.2f}")
+print(f"Artist Earnings: ${artist_earnings:.2f}")
+```
+
+### Get Active Artists
+
+```python
+# Query only active artists
+active_artists = db.query(Artist).filter(Artist.active == True).all()
+
+for artist in active_artists:
+    print(f"{artist.name} - {artist.rate_commission * 100}% commission")
+```
+
+### Update Commission Rate
+
+```python
+# Update an artist's commission rate
+artist = db.query(Artist).filter(Artist.id == 1).first()
+artist.rate_commission = 0.55  # Change to 55%
+db.commit()
+```
+
+## Commission Rate Details
+
+The `rate_commission` field determines how revenue is split between the artist and the studio:
+
+- **Value Range:** 0.0 to 1.0 (representing 0% to 100%)
+- **Default:** 0.50 (50/50 split)
+- **Common Values:**
+  - 0.40 = 40% to artist, 60% to studio
+  - 0.50 = 50% to artist, 50% to studio
+  - 0.60 = 60% to artist, 40% to studio
+
+The commission rate is used in transaction calculations and reporting. Individual sessions can override this rate using `TattooSession.commission_override`.
+
+## Notes
+
+- Artists can be deactivated using the `active` flag without deleting their records
+- The `name` field is indexed for fast searches and lookups
+- Commission rates are stored as decimals (0.50 = 50%)
+- Deleting an artist will cascade delete all their portfolio items
+- Sessions have `RESTRICT` on delete, preventing artist deletion if they have sessions
+- Location in codebase: `data/models/artist.py:5`

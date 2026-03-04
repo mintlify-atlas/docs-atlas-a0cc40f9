@@ -1,0 +1,254 @@
+---
+title: 'Authentication Service'
+description: 'Password hashing, verification, and user authentication functions'
+icon: 'shield-halved'
+---
+
+The authentication service provides core security functions for user authentication, password hashing, and credential verification.
+
+## Overview
+
+Location: `services/auth.py`
+
+This module handles:
+- Secure password hashing using bcrypt
+- Password verification against stored hashes
+- User authentication with username and password
+- Session token generation
+
+## Functions
+
+### hash_password
+
+Generates a bcrypt hash from a plain text password.
+
+<ParamField path="plain" type="string" required>
+  The plain text password to hash
+</ParamField>
+
+**Returns:** `str` - The bcrypt-hashed password as a UTF-8 string
+
+<CodeGroup>
+
+```python Usage
+from services.auth import hash_password
+
+# Hash a password for storage
+hashed = hash_password("my_secure_password")
+print(hashed)
+# Output: $2b$12$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
+```
+
+```python Function signature
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+```
+
+</CodeGroup>
+
+<Info>
+  This function uses bcrypt with automatic salt generation for secure password hashing. Never store plain text passwords.
+</Info>
+
+---
+
+### verify_password
+
+Verifies a plain text password against a stored bcrypt hash.
+
+<ParamField path="plain" type="string" required>
+  The plain text password to verify
+</ParamField>
+
+<ParamField path="hashed" type="string" required>
+  The stored bcrypt hash to compare against
+</ParamField>
+
+**Returns:** `bool` - `True` if the password matches, `False` otherwise
+
+<CodeGroup>
+
+```python Usage
+from services.auth import verify_password
+
+# Verify user login
+stored_hash = "$2b$12$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+user_input = "my_secure_password"
+
+if verify_password(user_input, stored_hash):
+    print("Password is correct")
+else:
+    print("Invalid password")
+```
+
+```python Function signature
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+```
+
+</CodeGroup>
+
+<Tip>
+  This function catches all exceptions and returns `False` for any error, including malformed hashes. This provides safe failure behavior.
+</Tip>
+
+---
+
+### get_user_by_username
+
+Retrieves a user record from the database by username.
+
+<ParamField path="db" type="Session" required>
+  SQLAlchemy database session
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  The username to search for
+</ParamField>
+
+**Returns:** `Optional[User]` - The User model instance or `None` if not found
+
+<CodeGroup>
+
+```python Usage
+from services.auth import get_user_by_username
+from data.db.session import SessionLocal
+
+with SessionLocal() as db:
+    user = get_user_by_username(db, "admin")
+    if user:
+        print(f"Found user: {user.username}, Role: {user.role}")
+    else:
+        print("User not found")
+```
+
+```python Function signature
+def get_user_by_username(db: Session, username: str) -> Optional[User]:
+    return db.query(User).filter(User.username == username).first()
+```
+
+</CodeGroup>
+
+---
+
+### authenticate
+
+Authenticates a user with username and password credentials.
+
+<ParamField path="db" type="Session" required>
+  SQLAlchemy database session
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  The username to authenticate
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  The plain text password to verify
+</ParamField>
+
+**Returns:** `Optional[Dict]` - User information dictionary or `None` if authentication fails
+
+The returned dictionary contains:
+- `id` (int): User ID
+- `username` (str): Username
+- `role` (str): User role (admin, assistant, artist)
+- `artist_id` (Optional[int]): Associated artist ID if applicable
+
+<CodeGroup>
+
+```python Usage
+from services.auth import authenticate
+from data.db.session import SessionLocal
+
+with SessionLocal() as db:
+    user_data = authenticate(db, "admin", "password123")
+    
+    if user_data:
+        print(f"Login successful!")
+        print(f"User ID: {user_data['id']}")
+        print(f"Role: {user_data['role']}")
+        print(f"Artist ID: {user_data.get('artist_id')}")
+    else:
+        print("Invalid credentials or inactive user")
+```
+
+```python Function signature
+def authenticate(db: Session, username: str, password: str) -> Optional[Dict]:
+    """Returns a dict with minimal user info if credentials are valid; otherwise None."""
+    u = get_user_by_username(db, username)
+    if not u or not u.is_active:
+        return None
+    if not verify_password(password, u.password_hash):
+        return None
+
+    # Update last_login
+    u.last_login = datetime.utcnow()
+    db.commit()
+
+    return {
+        "id": u.id,
+        "username": u.username,
+        "role": u.role,
+        "artist_id": u.artist_id,
+    }
+```
+
+</CodeGroup>
+
+<Warning>
+  This function automatically updates the user's `last_login` timestamp on successful authentication. Ensure the database session is committed after calling this function.
+</Warning>
+
+## Authentication Flow
+
+<Steps>
+  <Step title="User provides credentials">
+    The application collects username and password from the login form.
+  </Step>
+  
+  <Step title="Call authenticate function">
+    Pass the credentials to `authenticate()` with a database session.
+  </Step>
+  
+  <Step title="Validation checks">
+    The function verifies:
+    - User exists in the database
+    - User account is active (`is_active = True`)
+    - Password matches the stored hash
+  </Step>
+  
+  <Step title="Return user data or None">
+    On success, returns a dictionary with user information. On failure, returns `None`.
+  </Step>
+</Steps>
+
+## Security Considerations
+
+<AccordionGroup>
+  <Accordion title="Password hashing strength">
+    The service uses bcrypt with automatic salt generation. Bcrypt is designed to be slow, making brute-force attacks computationally expensive. Each password gets a unique salt, preventing rainbow table attacks.
+  </Accordion>
+  
+  <Accordion title="Timing attacks">
+    Be aware that the authentication function may be vulnerable to timing attacks. Consider implementing constant-time comparison or rate limiting to prevent username enumeration.
+  </Accordion>
+  
+  <Accordion title="Inactive users">
+    The `authenticate()` function explicitly checks for active users. Inactive users cannot log in even with correct credentials, providing a soft-delete mechanism.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Permissions Service" icon="lock" href="/api/services/permissions">
+    Role-based access control and authorization
+  </Card>
+  <Card title="User Model" icon="user" href="/api/models/user">
+    User data model and schema
+  </Card>
+</CardGroup>

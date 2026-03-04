@@ -1,0 +1,235 @@
+---
+title: Welcome to Tattoo Studio Manager
+description: Complete desktop management system for tattoo studios with client management, scheduling, portfolio tracking, inventory control, and financial reporting
+mode: custom
+---
+
+<div className="relative bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a] dark:from-[#0f1117] dark:via-[#1a1d27] dark:to-[#0f1117] py-20 overflow-hidden">
+  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(231,76,60,0.15),transparent_50%)]"></div>
+  <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(192,57,43,0.1),transparent_50%)]"></div>
+  
+  <div className="relative max-w-6xl mx-auto px-6 sm:px-8">
+    <div className="text-center">
+      <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+        Tattoo Studio Manager
+      </h1>
+      <p className="text-lg sm:text-xl text-gray-300 dark:text-gray-400 max-w-3xl mx-auto mb-10">
+        A complete desktop management system designed for tattoo studios. Manage clients, schedule appointments, track portfolios, control inventory, and generate financial reports—all in one place.
+      </p>
+      
+      <div className="flex flex-wrap justify-center gap-4">
+        <a
+          href="/quick-start"
+          className="inline-flex items-center px-6 py-3 rounded-lg bg-[#e74c3c] hover:bg-[#c0392b] text-white font-semibold transition-colors shadow-lg"
+        >
+          Get Started
+          <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a
+          href="/features/client-management"
+          className="inline-flex items-center px-6 py-3 rounded-lg border-2 border-white/30 bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors backdrop-blur-sm"
+        >
+          Explore Features
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+      Everything you need to run your tattoo studio
+    </h2>
+    <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+      Built with PyQt5 and SQLAlchemy, Tattoo Studio Manager provides a professional desktop solution for managing every aspect of your tattoo business.
+    </p>
+  </div>
+
+  <CardGroup cols={3}>
+    <Card title="Client Management" icon="users" href="/features/client-management">
+      Track client contact info, health records, consent forms, and preferences in one secure location.
+    </Card>
+    <Card title="Appointment Scheduling" icon="calendar" href="/features/appointment-scheduling">
+      Multi-artist calendar with session tracking, status management, and scheduling conflicts prevention.
+    </Card>
+    <Card title="Artist Portfolios" icon="palette" href="/features/artist-portfolios">
+      Organize and showcase artist work with metadata, categorization, and client associations.
+    </Card>
+    <Card title="Financial Tracking" icon="chart-line" href="/features/financial-tracking">
+      Track payments, calculate commissions automatically, and generate comprehensive financial reports.
+    </Card>
+    <Card title="Inventory Management" icon="boxes-stacked" href="/features/inventory-management">
+      Monitor supplies, set stock alerts, track product expiration dates, and manage vendors.
+    </Card>
+    <Card title="Role-Based Access" icon="shield-halved" href="/roles/overview">
+      Three user roles with granular permissions and master code elevation for sensitive operations.
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Quick Start
+  </h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Get Tattoo Studio Manager running in just a few steps
+  </p>
+
+  <Steps>
+    <Step title="Install dependencies">
+      Install Python 3.11 or higher and the required packages:
+      
+      ```bash
+      pip install -r requirements.txt
+      ```
+      
+      This installs PyQt5, SQLAlchemy, Alembic, bcrypt, and other dependencies.
+    </Step>
+    
+    <Step title="Initialize the database">
+      The application will automatically create the SQLite database on first run:
+      
+      ```bash
+      python main.py
+      ```
+      
+      <Note>
+        The database file `dev.db` will be created in the `TattoStudio` directory, along with an automatic backup in the `backups` folder.
+      </Note>
+    </Step>
+    
+    <Step title="Complete first-time setup">
+      When you first launch the application, you'll be prompted to:
+      - Create an admin account
+      - Set up your studio information
+      - Configure your master code for sensitive operations
+      
+      Follow the [first-time setup guide](/guides/first-time-setup) for detailed instructions.
+    </Step>
+    
+    <Step title="Start managing your studio">
+      Log in with your admin credentials and begin:
+      - Adding artists and staff members
+      - Onboarding clients with digital consent forms
+      - Scheduling appointments on the calendar
+      - Recording transactions and tracking commissions
+      
+      Check out the guides section for step-by-step tutorials.
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Explore by Role
+  </h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Learn what each user type can do in the system
+  </p>
+
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <a
+      href="/roles/admin"
+      className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#e74c3c] dark:hover:border-[#e74c3c] bg-white dark:bg-[#1a1d27] overflow-hidden transition-all no-underline"
+    >
+      <div className="p-6">
+        <div className="flex items-center mb-4">
+          <div className="w-12 h-12 rounded-lg bg-[#e74c3c]/10 flex items-center justify-center">
+            <svg className="w-6 h-6 text-[#e74c3c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          Admin
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Full system access including user management, security settings, backups, and all studio operations.
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#e74c3c] group-hover:text-[#c0392b]">
+          Learn more
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+
+    <a
+      href="/roles/assistant"
+      className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#e74c3c] dark:hover:border-[#e74c3c] bg-white dark:bg-[#1a1d27] overflow-hidden transition-all no-underline"
+    >
+      <div className="p-6">
+        <div className="flex items-center mb-4">
+          <div className="w-12 h-12 rounded-lg bg-[#e74c3c]/10 flex items-center justify-center">
+            <svg className="w-6 h-6 text-[#e74c3c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          Assistant
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Front desk operations including scheduling, client intake, payments, and reports with master code elevation.
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#e74c3c] group-hover:text-[#c0392b]">
+          Learn more
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+
+    <a
+      href="/roles/artist"
+      className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#e74c3c] dark:hover:border-[#e74c3c] bg-white dark:bg-[#1a1d27] overflow-hidden transition-all no-underline"
+    >
+      <div className="p-6">
+        <div className="flex items-center mb-4">
+          <div className="w-12 h-12 rounded-lg bg-[#e74c3c]/10 flex items-center justify-center">
+            <svg className="w-6 h-6 text-[#e74c3c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </div>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          Artist
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Manage own schedule, portfolio, client notes, and view personal financial reports and commission details.
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#e74c3c] group-hover:text-[#c0392b]">
+          Learn more
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="rounded-2xl bg-gradient-to-r from-[#e74c3c] to-[#c0392b] p-8 text-center">
+    <h2 className="text-3xl font-bold text-white mb-4">
+      Ready to get started?
+    </h2>
+    <p className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
+      Follow the installation guide to set up Tattoo Studio Manager and start managing your studio efficiently.
+    </p>
+    <a
+      href="/installation"
+      className="inline-flex items-center px-6 py-3 rounded-lg bg-white text-[#e74c3c] hover:bg-gray-100 font-semibold transition-colors shadow-lg"
+    >
+      View Installation Guide
+      <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
+    </a>
+  </div>
+</div>

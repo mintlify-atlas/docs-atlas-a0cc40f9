@@ -1,0 +1,670 @@
+---
+title: Artist Role
+description: Artist permissions with "own" policy restrictions
+---
+
+The **Artist** role is designed for tattoo artists who need to manage their own schedule, portfolio, and financial reports, but should not access studio-wide settings or other artists' data.
+
+## Overview
+
+Artists can:
+- Manage their own appointments and schedule blocks
+- Upload and edit their portfolio
+- View their own financial reports and transactions
+- View all clients but only edit notes for their own appointments
+- View studio inventory and staff
+
+<Info>
+  Most artist permissions use the `"own"` policy, which restricts access to only resources owned by that artist.
+</Info>
+
+## Artist Linking
+
+For the "own" policy to work, artist users must be linked to an artist profile:
+
+```python
+class User(Base):
+    role = Column(String(16), nullable=False)  # Must be "artist"
+    artist_id = Column(Integer, ForeignKey("artists.id"), nullable=True)  # REQUIRED
+```
+
+Defined in `data/models/user.py:12-13`.
+
+The `artist_id` field links the user account to their artist profile, enabling ownership checks:
+
+```python
+if policy == "own":
+    # Only allow if user owns the resource
+    return role == "artist" and owner_id is not None and user_artist_id == owner_id
+```
+
+Defined in `services/permissions.py:135-137`.
+
+<Warning>
+  If an artist user is not properly linked (`artist_id = NULL`), all "own" permissions will fail and they won't be able to perform any actions.
+</Warning>
+
+## Own Schedule Management
+
+Artists can manage appointments assigned to them:
+
+```python
+("agenda", "view"):     {"artist": "allow"}  # View all appointments
+("agenda", "create"):   {"artist": "own"}    # Book own appointments
+("agenda", "edit"):     {"artist": "own"}    # Edit own appointments
+("agenda", "cancel"):   {"artist": "own"}    # Cancel own appointments
+("agenda", "complete"): {"artist": "own"}    # Mark own as completed
+("agenda", "no_show"):  {"artist": "own"}    # Mark own as no-show
+("agenda", "block"):    {"artist": "own"}    # Block own time
+("agenda", "export"):   {"artist": "own"}    # Export own schedule
+```
+
+Defined in `services/permissions.py:40-47`.
+
+### What Artists Can Do
+
+**With their own appointments:**
+- View details and client information
+- Reschedule or cancel (within studio policy)
+- Mark as completed or no-show
+- Add notes and attach images
+- Block personal time off
+- Export their schedule for personal planning
+
+**With other artists' appointments:**
+- View appointment times (to coordinate)
+- View client names (basic info)
+- **Cannot** modify, cancel, or mark complete
+
+### Example: Blocking Time Off
+
+```python
+# Artist wants to block next Friday for vacation
+block = {
+    "artist_id": current_user.artist_id,  # Own artist ID
+    "date": "2026-03-13",
+    "start_time": "09:00",
+    "end_time": "17:00",
+    "reason": "Vacation"
+}
+
+# Permission check:
+can(
+    role="artist",
+    resource="agenda",
+    action="block",
+    owner_id=block["artist_id"],        # Owner of the block
+    user_artist_id=current_user.artist_id  # Current user's artist ID
+)
+# Returns True because owner_id == user_artist_id
+```
+
+### Example: Cannot Edit Other Artist's Appointment
+
+```python
+# Appointment belongs to artist_id = 5
+# Current user has artist_id = 3
+
+can(
+    role="artist",
+    resource="agenda",
+    action="edit",
+    owner_id=5,              # Appointment owner
+    user_artist_id=3         # Current user
+)
+# Returns False because 5 != 3
+```
+
+## Client Access Restrictions
+
+Artists can view all clients but have limited modification rights:
+
+```python
+("clients", "view"):    {"artist": "allow"}  # View all clients
+("clients", "create"):  {"artist": "allow"}  # Create new clients
+("clients", "edit"):    {"artist": "deny"}   # Cannot edit client info
+("clients", "delete"):  {"artist": "deny"}   # Cannot delete clients
+("clients", "consent"): {"artist": "own"}    # Manage consent for own appointments
+("clients", "notes"):   {"artist": "own"}    # Edit notes for own appointments
+("clients", "export"):  {"artist": "deny"}   # Cannot export client data
+```
+
+Defined in `services/permissions.py:50-56`.
+
+### What Artists Can Do
+
+**Full access:**
+- View any client's contact information
+- Search client database
+- Create new client records (for walk-ins they're serving)
+
+**Own appointments only:**
+- Attach consent forms to their appointments
+- Add notes about their sessions with the client
+- Upload reference images for their appointments
+
+**No access:**
+- Edit client contact information (phone, email, address)
+- Delete client records
+- Export client lists
+
+<Info>
+  If a client's information is incorrect, artists should ask an assistant or admin to correct it.
+</Info>
+
+### Example: Adding Notes to Own Appointment
+
+```python
+# Artist completed a session and wants to add notes
+appointment = get_appointment(123)
+# appointment.artist_id = 3 (assigned to this artist)
+# current_user.artist_id = 3
+
+can(
+    role="artist",
+    resource="clients",
+    action="notes",
+    owner_id=appointment.artist_id,      # Appointment owner
+    user_artist_id=current_user.artist_id
+)
+# Returns True - can add notes to own appointment
+
+add_note(
+    client_id=appointment.client_id,
+    appointment_id=appointment.id,
+    note="First session completed. Good pain tolerance. Planning color for next session."
+)
+```
+
+## Portfolio Management
+
+Artists have full control over their own portfolio:
+
+```python
+("portfolio", "view"):   {"artist": "allow"}  # View all portfolios
+("portfolio", "edit"):   {"artist": "own"}    # Edit own portfolio
+("portfolio", "upload"): {"artist": "own"}    # Upload to own portfolio
+```
+
+Defined in `services/permissions.py:62-64`.
+
+### What Artists Can Do
+
+**Own portfolio:**
+- Upload new images of completed work
+- Edit image titles and descriptions
+- Organize images by style or category
+- Set featured images
+- Delete images from their portfolio
+
+**Other portfolios:**
+- View other artists' portfolios
+- **Cannot** upload or edit
+
+**Use cases:**
+- Showcase work to potential clients
+- Update portfolio after each session
+- Organize work by tattoo style (traditional, realism, etc.)
+- Feature best work prominently
+
+<Info>
+  Keep your portfolio current! Upload your best work regularly to attract clients who match your style.
+</Info>
+
+## Financial Reports (Own Only)
+
+Artists can view their own financial data:
+
+```python
+("reports", "view"):        {"artist": "own"}   # View own reports
+("reports", "export"):      {"artist": "deny"}  # Cannot export
+("reports", "view_tx"):     {"artist": "own"}   # View own transactions
+("reports", "refund_void"): {"artist": "deny"}  # Cannot process refunds
+("reports", "cash_close"):  {"artist": "deny"}  # Cannot close cash
+```
+
+Defined in `services/permissions.py:67-71`.
+
+### What Artists Can Do
+
+**Own financial data:**
+- View daily/weekly/monthly earnings
+- See list of completed appointments and payments
+- Check individual transaction details
+- Review tips received
+- Track commission splits
+
+**What artists cannot do:**
+- View other artists' earnings
+- View studio-wide revenue reports
+- Export financial data
+- Process refunds or voids
+- Close cash drawer
+
+### Example: Viewing Own Earnings
+
+```python
+# Artist wants to see this month's earnings
+report = generate_report(
+    artist_id=current_user.artist_id,
+    start_date="2026-03-01",
+    end_date="2026-03-31"
+)
+
+# Permission check:
+can(
+    role="artist",
+    resource="reports",
+    action="view",
+    owner_id=report.artist_id,           # Report owner
+    user_artist_id=current_user.artist_id
+)
+# Returns True - can view own reports
+```
+
+<Warning>
+  Artists cannot process refunds even for their own appointments. Refunds must be processed by assistant (with master code) or admin.
+</Warning>
+
+## Staff and Inventory (View Only)
+
+Artists can view but not modify staff or inventory:
+
+```python
+("staff", "view"):            {"artist": "allow"}  # View all staff
+("staff", "manage_users"):    {"artist": "deny"}   # Cannot manage users
+("staff", "toggle_active"):   {"artist": "deny"}   # Cannot disable accounts
+
+("inventory", "view"):        {"artist": "allow"}  # View inventory
+("inventory", "create_item"): {"artist": "deny"}   # Cannot create items
+("inventory", "edit_item"):   {"artist": "deny"}   # Cannot edit items
+("inventory", "stock_in"):    {"artist": "deny"}   # Cannot receive stock
+("inventory", "stock_adj"):   {"artist": "deny"}   # Cannot adjust quantities
+("inventory", "cycle_count"): {"artist": "deny"}   # Cannot do counts
+("inventory", "export"):      {"artist": "deny"}   # Cannot export
+```
+
+Defined in `services/permissions.py:59-61` and `services/permissions.py:74-80`.
+
+### Staff Directory
+
+Artists can:
+- View other artists' profiles and portfolios
+- See contact information for coordination
+- Check other artists' specialties and styles
+- View assistant and admin contact info
+
+### Inventory
+
+Artists can:
+- Check if supplies are in stock
+- View reorder alerts
+- See supply costs and pricing
+- Request inventory adjustments from assistant/admin
+
+<Info>
+  If supplies are low or you notice a discrepancy, notify an assistant or admin who can adjust inventory.
+</Info>
+
+## Security Settings (No Access)
+
+Artists cannot access any security features:
+
+```python
+("security", "settings"):    {"artist": "deny"}  # Cannot access settings
+("security", "audit"):       {"artist": "deny"}  # Cannot view audit logs
+("security", "backup"):      {"artist": "deny"}  # Cannot manage backups
+("security", "rotate_code"): {"artist": "deny"}  # Cannot change master code
+```
+
+Defined in `services/permissions.py:83-86`.
+
+All security features are admin-only.
+
+## Understanding "Own" Permissions
+
+The `"own"` policy is central to the artist role. Here's how it works technically:
+
+### How Ownership Works
+
+```python
+def can(
+    role: str,
+    resource: str,
+    action: str,
+    *,
+    owner_id: Optional[int] = None,         # Resource owner's artist_id
+    user_artist_id: Optional[int] = None,   # Current user's artist_id
+    user_id: Optional[int] = None,
+) -> bool:
+    policy = _policy_for(role, resource, action)
+    
+    if policy == "own":
+        # Only allow if:
+        # 1. User role is "artist"
+        # 2. owner_id is provided (resource has an owner)
+        # 3. User's artist_id matches owner_id
+        return role == "artist" and owner_id is not None and user_artist_id == owner_id
+```
+
+Defined in `services/permissions.py:115-137`.
+
+### Ownership Examples
+
+<Tabs>
+  <Tab title="Appointment">
+    ```python
+    # Appointment table
+    appointment = {
+        "id": 100,
+        "artist_id": 3,  # Assigned to artist #3
+        "client_id": 50,
+        "date": "2026-03-10",
+        "status": "scheduled"
+    }
+    
+    # Artist #3 wants to edit
+    can(
+        role="artist",
+        resource="agenda",
+        action="edit",
+        owner_id=appointment["artist_id"],  # 3
+        user_artist_id=3                     # 3
+    )
+    # Returns True (3 == 3)
+    
+    # Artist #5 wants to edit same appointment
+    can(
+        role="artist",
+        resource="agenda",
+        action="edit",
+        owner_id=appointment["artist_id"],  # 3
+        user_artist_id=5                     # 5
+    )
+    # Returns False (3 != 5)
+    ```
+  </Tab>
+  
+  <Tab title="Portfolio">
+    ```python
+    # Artist profile
+    artist = {
+        "id": 7,
+        "name": "Sarah",
+        "style": "Traditional"
+    }
+    
+    # User linked to artist #7
+    user = {
+        "id": 42,
+        "username": "sarah_tattoos",
+        "role": "artist",
+        "artist_id": 7
+    }
+    
+    # Sarah uploads to her portfolio
+    can(
+        role="artist",
+        resource="portfolio",
+        action="upload",
+        owner_id=7,              # Portfolio owner
+        user_artist_id=7         # Sarah's artist_id
+    )
+    # Returns True - can upload to own portfolio
+    ```
+  </Tab>
+  
+  <Tab title="Report">
+    ```python
+    # Monthly revenue report
+    report = {
+        "artist_id": 4,
+        "month": "2026-03",
+        "total_revenue": 8500.00,
+        "appointments": 42
+    }
+    
+    # Artist #4 views their report
+    can(
+        role="artist",
+        resource="reports",
+        action="view",
+        owner_id=report["artist_id"],  # 4
+        user_artist_id=4                # 4
+    )
+    # Returns True
+    
+    # Artist #2 tries to view artist #4's report
+    can(
+        role="artist",
+        resource="reports",
+        action="view",
+        owner_id=report["artist_id"],  # 4
+        user_artist_id=2                # 2
+    )
+    # Returns False - cannot view other artists' reports
+    ```
+  </Tab>
+</Tabs>
+
+## Daily Workflows
+
+### Starting Your Day
+
+1. Log in with your artist credentials
+2. Review today's appointments on your schedule
+3. Check client notes from previous sessions
+4. Verify supplies needed for today's appointments
+5. Prepare workspace for first client
+
+### Completing an Appointment
+
+1. Mark appointment as completed in your schedule
+2. Add session notes:
+   - Work completed
+   - Client's pain tolerance
+   - Areas covered
+   - Plans for next session
+3. Upload photos to your portfolio:
+   - Select best images of completed work
+   - Add title and description
+   - Tag style category
+4. Have client sign off on consent form
+5. Book follow-up appointment if needed
+
+### Blocking Time Off
+
+1. Navigate to your schedule
+2. Select dates you need blocked
+3. Create schedule block:
+   - Type: Vacation, Personal, Convention, etc.
+   - All-day or specific hours
+   - Add notes (optional)
+4. Submit block request
+5. Notify studio manager through other channels
+
+### Reviewing Your Earnings
+
+1. Navigate to Reports
+2. Select date range (week, month, quarter)
+3. Review:
+   - Number of appointments completed
+   - Total revenue generated
+   - Tips received
+   - Commission splits
+4. Compare to previous periods
+5. Identify busy days vs. slow days
+
+### Updating Your Portfolio
+
+1. Navigate to your Portfolio
+2. Upload new images:
+   - High-quality photos of completed work
+   - Proper lighting and focus
+   - Multiple angles if applicable
+3. Add information:
+   - Title (style, size, placement)
+   - Description (technique, time, etc.)
+   - Style category tags
+4. Organize:
+   - Featured images at top
+   - Group by style or color
+   - Remove outdated work
+5. Preview how clients see your portfolio
+
+## What Artists Cannot Do
+
+Understanding limitations helps you work effectively with front desk:
+
+### Never Allowed
+
+<AccordionGroup>
+  <Accordion title="Modify Other Artists' Data">
+    Even "view" permissions are restricted to your own data for:
+    - Appointments (can see times, but cannot edit)
+    - Reports (cannot view other artists' earnings)
+    - Portfolios (cannot upload to others' portfolios)
+    
+    This protects each artist's privacy and autonomy.
+  </Accordion>
+  
+  <Accordion title="Client Database Management">
+    ```python
+    ("clients", "edit"):   {"artist": "deny"}
+    ("clients", "delete"): {"artist": "deny"}
+    ("clients", "export"): {"artist": "deny"}
+    ```
+    
+    Client information is managed by front desk to ensure data integrity.
+    
+    If you need client info corrected, ask an assistant.
+  </Accordion>
+  
+  <Accordion title="Financial Operations">
+    ```python
+    ("reports", "refund_void"): {"artist": "deny"}
+    ("reports", "cash_close"):  {"artist": "deny"}
+    ("reports", "export"):      {"artist": "deny"}
+    ```
+    
+    Refunds, voids, and cash operations are handled by front desk for audit trail.
+    
+    If a client requests a refund, direct them to the front desk.
+  </Accordion>
+  
+  <Accordion title="Inventory Management">
+    All inventory modifications are denied:
+    ```python
+    ("inventory", "create_item"): {"artist": "deny"}
+    ("inventory", "edit_item"):   {"artist": "deny"}
+    ("inventory", "stock_in"):    {"artist": "deny"}
+    ("inventory", "stock_adj"):   {"artist": "deny"}
+    ```
+    
+    You can view inventory and request adjustments from an assistant.
+  </Accordion>
+  
+  <Accordion title="System Administration">
+    All security and system settings:
+    ```python
+    ("security", "settings"):    {"artist": "deny"}
+    ("security", "audit"):       {"artist": "deny"}
+    ("security", "backup"):      {"artist": "deny"}
+    ("security", "rotate_code"): {"artist": "deny"}
+    ```
+    
+    Admins handle all system configuration and security.
+  </Accordion>
+</AccordionGroup>
+
+## Tips for Artists
+
+<AccordionGroup>
+  <Accordion title="Keep Your Schedule Current">
+    Block time off as soon as you know about it:
+    - Personal appointments
+    - Conventions and events
+    - Vacation days
+    - Regular days off
+    
+    This helps front desk book accurately and prevents double-booking.
+  </Accordion>
+  
+  <Accordion title="Document Everything in Notes">
+    Thorough notes help you and protect the studio:
+    - Client preferences and sensitivities
+    - Progress on multi-session pieces
+    - Aftercare instructions given
+    - Client acknowledgment of pain/breaks
+    
+    Notes are legally important for consent and liability.
+  </Accordion>
+  
+  <Accordion title="Update Portfolio Regularly">
+    Your portfolio is your best marketing tool:
+    - Upload immediately after sessions (when photos are best)
+    - Feature your best and most recent work
+    - Remove outdated or lower-quality images
+    - Organize by style to help clients find relevant work
+  </Accordion>
+  
+  <Accordion title="Review Reports Weekly">
+    Regular financial review helps you:
+    - Track income trends and growth
+    - Identify busy vs. slow periods
+    - Plan personal budget
+    - Set goals for number of appointments
+    
+    Use data to understand your business.
+  </Accordion>
+  
+  <Accordion title="Communicate with Front Desk">
+    You depend on assistants for:
+    - Correcting client information
+    - Managing inventory levels
+    - Handling refunds and issues
+    - Booking and scheduling support
+    
+    Good communication makes everyone's job easier.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### "Permission Denied" Errors
+
+If you see permission errors:
+
+1. **Check if it's your appointment/resource**
+   - "Own" permissions only work for your assigned appointments
+   - Verify the appointment shows your name
+
+2. **Verify your account is linked**
+   - Your user account must have `artist_id` set
+   - Contact admin if you think linking is broken
+
+3. **Understand what requires front desk**
+   - Client edits → ask assistant
+   - Refunds → ask assistant with master code
+   - Inventory changes → ask assistant with master code
+
+4. **Check if action is denied for artists**
+   - Some actions are admin/assistant only
+   - Review [Permissions Matrix](/roles/permissions) for details
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Permissions Matrix" icon="table" href="/roles/permissions">
+    View all artist permissions and "own" policies
+  </Card>
+  <Card title="Admin Role" icon="shield-halved" href="/roles/admin">
+    Understand what admins can do that artists cannot
+  </Card>
+  <Card title="Assistant Role" icon="headset" href="/roles/assistant">
+    Learn what assistants can help you with
+  </Card>
+  <Card title="Portfolio Management" icon="images" href="/features/portfolio">
+    Deep dive into portfolio features
+  </Card>
+</CardGroup>

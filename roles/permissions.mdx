@@ -1,0 +1,680 @@
+---
+title: Permissions Matrix
+description: Complete RBAC permission reference for all roles and resources
+---
+
+This page documents the complete Role-Based Access Control (RBAC) matrix for Tattoo Studio Manager. The matrix is the single source of truth for all permissions and is defined in `services/permissions.py:38-87`.
+
+## Understanding the Matrix
+
+Each entry in the matrix maps a **resource** and **action** combination to a **policy** for each role:
+
+```python
+RBAC: Dict[Tuple[str, str], Dict[str, PolicyValue]] = {
+    ("resource", "action"): {"admin": policy, "assistant": policy, "artist": policy}
+}
+```
+
+### Policy Values
+
+The system uses four distinct policy values:
+
+<CardGroup cols={2}>
+  <Card title="allow" icon="check" color="#00AA00">
+    **Full Access**
+    
+    User can perform this action without any restrictions or additional approval.
+  </Card>
+  
+  <Card title="own" icon="user" color="#0088FF">
+    **Ownership Required**
+    
+    User can only perform this action on resources they own. Requires `artist_id` matching.
+  </Card>
+  
+  <Card title="locked" icon="lock" color="#FF8800">
+    **Master Code Required**
+    
+    Assistant can perform this action only after entering master code for temporary elevation.
+  </Card>
+  
+  <Card title="deny" icon="xmark" color="#FF0000">
+    **No Access**
+    
+    User cannot perform this action under any circumstances.
+  </Card>
+</CardGroup>
+
+## Complete Permission Matrix
+
+### Agenda (Schedule)
+
+Appointments, schedule blocks, and calendar operations.
+
+| Action | Admin | Assistant | Artist | Notes |
+|--------|-------|-----------|--------|-------|
+| `view` | `allow` | `allow` | `allow` | Everyone can view full schedule |
+| `create` | `allow` | `allow` | `own` | Artists can only book own appointments |
+| `edit` | `allow` | `allow` | `own` | Artists can only modify own appointments |
+| `cancel` | `allow` | `allow` | `own` | Artists can only cancel own appointments |
+| `complete` | `allow` | `allow` | `own` | Artists can only complete own appointments |
+| `no_show` | `allow` | `allow` | `own` | Artists can only mark own no-shows |
+| `block` | `allow` | `allow` | `own` | Artists can only block own time |
+| `export` | `allow` | `allow` | `own` | Artists can only export own schedule |
+
+Defined in `services/permissions.py:40-47`.
+
+**Key insights:**
+- Everyone has read access to the full studio schedule
+- Admin and assistant can manage all appointments (front desk operations)
+- Artists are restricted to their own appointments via "own" policy
+- No actions require master code elevation (daily operations)
+
+### Clients
+
+Client database, contact information, notes, and consent forms.
+
+| Action | Admin | Assistant | Artist | Notes |
+|--------|-------|-----------|--------|-------|
+| `view` | `allow` | `allow` | `allow` | Everyone can view all clients |
+| `create` | `allow` | `allow` | `allow` | Everyone can add new clients |
+| `edit` | `allow` | `locked` | `deny` | Assistant needs master code to edit |
+| `delete` | `allow` | `locked` | `deny` | Assistant needs master code to delete |
+| `consent` | `allow` | `allow` | `own` | Artists can manage consent for own appointments |
+| `notes` | `allow` | `allow` | `own` | Artists can edit notes for own appointments |
+| `export` | `allow` | `locked` | `deny` | Assistant needs master code to export |
+
+Defined in `services/permissions.py:50-56`.
+
+**Key insights:**
+- Client viewing and creation is open to all (intake process)
+- Editing and deletion are protected (data integrity)
+- Artists can add notes only to their own appointments
+- Export is protected (privacy concerns)
+
+### Staff
+
+User accounts, artist profiles, and staff management.
+
+| Action | Admin | Assistant | Artist | Notes |
+|--------|-------|-----------|--------|-------|
+| `view` | `allow` | `allow` | `allow` | Everyone can view staff directory |
+| `manage_users` | `allow` | `deny` | `deny` | Only admin can create/modify users |
+| `toggle_active` | `allow` | `deny` | `deny` | Only admin can enable/disable accounts |
+
+Defined in `services/permissions.py:59-61`.
+
+**Key insights:**
+- Staff directory is visible to all
+- User management is exclusively admin (security)
+- No master code elevation available (admin only)
+
+### Portfolio
+
+Artist portfolios and image galleries.
+
+| Action | Admin | Assistant | Artist | Notes |
+|--------|-------|-----------|--------|-------|
+| `view` | `allow` | `allow` | `allow` | Everyone can view all portfolios |
+| `edit` | `allow` | `deny` | `own` | Artists can only edit own portfolio |
+| `upload` | `allow` | `deny` | `own` | Artists can only upload to own portfolio |
+
+Defined in `services/permissions.py:62-64`.
+
+**Key insights:**
+- Portfolios are publicly viewable (for client selection)
+- Artists have full control over their own portfolio
+- Assistants cannot modify portfolios (artist autonomy)
+- Admin can manage all portfolios (quality control)
+
+### Reports
+
+Financial reports, transactions, refunds, and cash management.
+
+| Action | Admin | Assistant | Artist | Notes |
+|--------|-------|-----------|--------|-------|
+| `view` | `allow` | `allow` | `own` | Artists can only view own reports |
+| `export` | `allow` | `locked` | `deny` | Assistant needs master code to export |
+| `view_tx` | `allow` | `allow` | `own` | Artists can only view own transactions |
+| `refund_void` | `allow` | `locked` | `deny` | Assistant needs master code for refunds |
+| `cash_close` | `allow` | `locked` | `deny` | Assistant needs master code to close drawer |
+
+Defined in `services/permissions.py:67-71`.
+
+**Key insights:**
+- Artists can only see their own financial data (privacy)
+- Admin has unrestricted financial access
+- Sensitive financial operations require master code for assistants
+- Artists cannot process refunds (escalate to front desk)
+
+### Inventory
+
+Stock management, supplies, and inventory operations.
+
+| Action | Admin | Assistant | Artist | Notes |
+|--------|-------|-----------|--------|-------|
+| `view` | `allow` | `allow` | `allow` | Everyone can view inventory levels |
+| `create_item` | `allow` | `locked` | `deny` | Assistant needs master code to add items |
+| `edit_item` | `allow` | `locked` | `deny` | Assistant needs master code to edit items |
+| `stock_in` | `allow` | `locked` | `deny` | Assistant needs master code for deliveries |
+| `stock_adj` | `allow` | `locked` | `deny` | Assistant needs master code for adjustments |
+| `cycle_count` | `allow` | `locked` | `deny` | Assistant needs master code for physical counts |
+| `export` | `allow` | `locked` | `deny` | Assistant needs master code to export |
+
+Defined in `services/permissions.py:74-80`.
+
+**Key insights:**
+- Inventory visibility is open to all (check stock)
+- All modifications require elevation or admin (financial impact)
+- Artists cannot adjust inventory (request from front desk)
+- Inventory is financially sensitive (locked actions)
+
+### Security
+
+System settings, audit logs, backups, and master code management.
+
+| Action | Admin | Assistant | Artist | Notes |
+|--------|-------|-----------|--------|-------|
+| `settings` | `allow` | `deny` | `deny` | Only admin can access system settings |
+| `audit` | `allow` | `deny` | `deny` | Only admin can view audit logs |
+| `backup` | `allow` | `deny` | `deny` | Only admin can manage backups |
+| `rotate_code` | `allow` | `deny` | `deny` | Only admin can change master code |
+
+Defined in `services/permissions.py:83-86`.
+
+**Key insights:**
+- All security features are admin-exclusive
+- No master code elevation available (admin only)
+- Strict separation of security duties
+- Critical for audit trail and compliance
+
+## Permission Checking
+
+The permission system is implemented through the `can()` function:
+
+```python
+def can(
+    role: str,
+    resource: str,
+    action: str,
+    *,
+    owner_id: Optional[int] = None,         # Resource owner's artist_id
+    user_artist_id: Optional[int] = None,   # Current user's artist_id
+    user_id: Optional[int] = None,          # For elevation check
+) -> bool:
+    """Check if role can perform action on resource."""
+```
+
+Defined in `services/permissions.py:115-145`.
+
+### Usage Examples
+
+<Tabs>
+  <Tab title="Simple Check">
+    ```python
+    from services.permissions import can
+    
+    # Check if assistant can view clients (no ownership)
+    if can(role="assistant", resource="clients", action="view"):
+        # Show client list
+        display_clients()
+    ```
+    
+    For actions with `allow` or `deny` policy, only role matters.
+  </Tab>
+  
+  <Tab title="Ownership Check">
+    ```python
+    # Check if artist can edit specific appointment
+    appointment = get_appointment(123)
+    user = get_current_user()
+    
+    if can(
+        role=user.role,
+        resource="agenda",
+        action="edit",
+        owner_id=appointment.artist_id,      # Who owns the appointment
+        user_artist_id=user.artist_id        # Current user's artist_id
+    ):
+        # Allow editing
+        show_edit_form(appointment)
+    else:
+        # Deny access
+        show_error("You can only edit your own appointments")
+    ```
+    
+    For "own" policy, `owner_id` must match `user_artist_id`.
+  </Tab>
+  
+  <Tab title="Elevation Check">
+    ```python
+    # Check if assistant can delete client (locked action)
+    from services.permissions import can, is_elevated_now
+    
+    if can(
+        role="assistant",
+        resource="clients",
+        action="delete",
+        user_id=user.id  # Needed to check elevation
+    ):
+        # Assistant is elevated - allow deletion
+        delete_client(client_id)
+    else:
+        # Prompt for master code
+        show_master_code_prompt()
+    ```
+    
+    For "locked" policy, assistant must be currently elevated.
+  </Tab>
+</Tabs>
+
+## Enforcement
+
+Permissions should be enforced at multiple layers:
+
+### 1. UI Layer
+
+Hide or disable controls based on permissions:
+
+```python
+from services.permissions import can
+
+user = get_current_user()
+
+# Show edit button only if user has permission
+if can(user.role, "clients", "edit", user_id=user.id):
+    show_edit_button()
+
+# Disable delete button if not allowed
+if not can(user.role, "clients", "delete", user_id=user.id):
+    disable_delete_button()
+```
+
+### 2. Service Layer
+
+Use `enforce()` before database writes:
+
+```python
+from services.permissions import enforce, PermissionError
+
+def delete_client(client_id: int, db: Session):
+    # Enforce permission before proceeding
+    try:
+        enforce(resource="clients", action="delete", db=db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    
+    # Proceed with deletion
+    client = db.query(Client).get(client_id)
+    db.delete(client)
+    db.commit()
+```
+
+Defined in `services/permissions.py:167-189`.
+
+### 3. API Layer
+
+Validate permissions on every request:
+
+```python
+@app.delete("/api/clients/{client_id}")
+def delete_client_endpoint(client_id: int, db: Session = Depends(get_db)):
+    # Permission enforced automatically by enforce() in service
+    delete_client(client_id, db)
+    return {"message": "Client deleted"}
+```
+
+<Info>
+  **Defense in Depth:** Always enforce permissions at service layer even if UI already checks. UI can be bypassed via API.
+</Info>
+
+## Master Code Elevation
+
+### What Actions Are Locked?
+
+Use this helper to determine if an action requires master code:
+
+```python
+def assistant_needs_code(resource: str, action: str) -> bool:
+    """Returns True if assistant needs master code for this action."""
+    return _policy_for("assistant", resource, action) == "locked"
+```
+
+Defined in `services/permissions.py:102-103`.
+
+### Complete List of Locked Actions
+
+These actions require assistants to enter the master code:
+
+**Clients:**
+- `edit` - Edit client contact information
+- `delete` - Delete client records
+- `export` - Export client data
+
+**Reports:**
+- `export` - Export financial data
+- `refund_void` - Process refunds and voids
+- `cash_close` - Close cash drawer
+
+**Inventory:**
+- `create_item` - Add new inventory items
+- `edit_item` - Edit item details
+- `stock_in` - Receive stock deliveries
+- `stock_adj` - Adjust stock quantities
+- `cycle_count` - Perform physical counts
+- `export` - Export inventory data
+
+### Elevation Workflow
+
+```python
+from services.permissions import (
+    verify_master_code,
+    elevate_for,
+    is_elevated_now
+)
+
+# User attempts locked action
+if assistant_needs_code("clients", "edit"):
+    if not is_elevated_now(user.id):
+        # Prompt for master code
+        code = prompt_master_code()
+        
+        # Verify code
+        if verify_master_code(code, db):
+            # Elevate for 5 minutes
+            elevate_for(user.id, minutes=5)
+            show_message("Elevated for 5 minutes")
+        else:
+            show_error("Invalid master code")
+            return
+    
+    # Proceed with action
+    edit_client(client_id)
+```
+
+Defined in `services/permissions.py:152-159` and `services/permissions.py:111-112`.
+
+### Elevation Timeout
+
+Elevation is time-limited and stored in memory:
+
+```python
+# In-memory elevation tracking
+_elevations: Dict[int, datetime] = {}  # user_id -> expiration
+
+def is_elevated_now(user_id: int) -> bool:
+    """Check if user is currently elevated."""
+    exp = _elevations.get(user_id)
+    return bool(exp and datetime.now() <= exp)
+```
+
+Defined in `services/permissions.py:91-108`.
+
+<Warning>
+  Elevation state is stored in memory and will be lost on application restart. This is intentional for security.
+</Warning>
+
+## Default Deny Policy
+
+If a resource/action combination is not defined in the matrix, it defaults to `deny`:
+
+```python
+def _policy_for(role: str, resource: str, action: str) -> PolicyValue:
+    entry = RBAC.get((resource, action))
+    if not entry:
+        # Fail-safe: undefined permissions are denied
+        return "deny"
+    return entry.get(role, "deny")
+```
+
+Defined in `services/permissions.py:94-99`.
+
+This ensures new features are secure by default.
+
+## Permission Patterns
+
+### Pattern 1: Full Admin Access
+
+Admins have `allow` for almost everything:
+
+```python
+("resource", "action"): {"admin": "allow", ...}
+```
+
+**Exceptions:** None. Admin is unrestricted.
+
+### Pattern 2: Assistant with Elevation
+
+Common operations are `allow`, sensitive ones are `locked`:
+
+```python
+# Daily operations
+("agenda", "view"):   {"assistant": "allow"}
+("clients", "view"):  {"assistant": "allow"}
+
+# Sensitive operations
+("clients", "delete"):   {"assistant": "locked"}
+("reports", "refund_void"): {"assistant": "locked"}
+```
+
+Assistants can do most things, but need approval for financial/data impact.
+
+### Pattern 3: Artist Ownership
+
+Artists can manage their own resources:
+
+```python
+# View all, modify own
+("agenda", "view"):   {"artist": "allow"}
+("agenda", "edit"):   {"artist": "own"}
+
+("reports", "view"):  {"artist": "own"}  # Only view own
+```
+
+Artists have autonomy over their work but cannot access others' data.
+
+### Pattern 4: Admin-Only Security
+
+Security features are exclusively admin:
+
+```python
+("security", "*"): {"admin": "allow", "assistant": "deny", "artist": "deny"}
+```
+
+No elevation path for non-admins. Strict separation of duties.
+
+## Adding New Permissions
+
+When adding new features, update the RBAC matrix:
+
+```python
+# Add to services/permissions.py
+RBAC: Dict[Tuple[str, str], Dict[str, PolicyValue]] = {
+    # Existing permissions...
+    
+    # New feature
+    ("messages", "view"):   {"admin": "allow", "assistant": "allow", "artist": "own"},
+    ("messages", "send"):   {"admin": "allow", "assistant": "allow", "artist": "own"},
+    ("messages", "delete"): {"admin": "allow", "assistant": "locked", "artist": "own"},
+}
+```
+
+**Guidelines:**
+
+1. **Start restrictive:** Default to `deny` or `locked`, then open up if needed
+2. **Consider workflow:** What does each role need for their job?
+3. **Financial impact:** Lock actions that affect money or costs
+4. **Data integrity:** Lock or deny actions that could corrupt data
+5. **Privacy:** Use `own` policy to protect individual artist data
+6. **Admin override:** Admin should have `allow` for audit/support purposes
+
+## Testing Permissions
+
+Test each role's access systematically:
+
+```python
+import pytest
+from services.permissions import can
+
+def test_artist_can_edit_own_appointment():
+    assert can(
+        role="artist",
+        resource="agenda",
+        action="edit",
+        owner_id=3,
+        user_artist_id=3
+    ) == True
+
+def test_artist_cannot_edit_other_appointment():
+    assert can(
+        role="artist",
+        resource="agenda",
+        action="edit",
+        owner_id=3,
+        user_artist_id=5
+    ) == False
+
+def test_assistant_needs_elevation_for_client_delete():
+    # Without elevation
+    assert can(
+        role="assistant",
+        resource="clients",
+        action="delete",
+        user_id=10
+    ) == False
+    
+    # With elevation
+    elevate_for(user_id=10, minutes=5)
+    assert can(
+        role="assistant",
+        resource="clients",
+        action="delete",
+        user_id=10
+    ) == True
+```
+
+## Quick Reference
+
+### By Role
+
+<AccordionGroup>
+  <Accordion title="Admin">
+    **Can do everything:**
+    - All agenda operations for all artists
+    - All client operations including edit/delete
+    - User management (create, modify, deactivate)
+    - All financial operations without approval
+    - All inventory operations
+    - All security settings
+    - Rotate master code
+    
+    **Cannot do:** Nothing. Admin is unrestricted.
+  </Accordion>
+  
+  <Accordion title="Assistant">
+    **Can do without master code:**
+    - All agenda operations for all artists
+    - View and create clients
+    - View all reports and transactions
+    - View all inventory
+    - View staff directory and portfolios
+    
+    **Can do with master code:**
+    - Edit and delete clients
+    - Export client data
+    - Process refunds and voids
+    - Close cash drawer
+    - Export financial reports
+    - All inventory modifications
+    
+    **Cannot do:**
+    - User management
+    - Edit portfolios
+    - Access security settings
+  </Accordion>
+  
+  <Accordion title="Artist">
+    **Can do for own resources:**
+    - Manage own appointments
+    - Block own time off
+    - Edit portfolio
+    - View own reports
+    - Add notes to own appointments
+    
+    **Can do for all:**
+    - View all schedules
+    - View all clients
+    - Create new clients
+    - View inventory
+    - View staff directory
+    
+    **Cannot do:**
+    - Modify other artists' data
+    - Edit client information
+    - Process refunds
+    - Modify inventory
+    - Access security settings
+  </Accordion>
+</AccordionGroup>
+
+### By Resource
+
+<AccordionGroup>
+  <Accordion title="Agenda">
+    - **Admin/Assistant:** Full control over all appointments
+    - **Artist:** View all, modify own only
+    - **No locked actions** (daily operations)
+  </Accordion>
+  
+  <Accordion title="Clients">
+    - **Admin:** Unrestricted access
+    - **Assistant:** View/create allowed, edit/delete locked
+    - **Artist:** View/create allowed, modifications denied
+  </Accordion>
+  
+  <Accordion title="Staff/Portfolio">
+    - **Admin:** Full control
+    - **Assistant:** View only
+    - **Artist:** View all, edit own portfolio
+  </Accordion>
+  
+  <Accordion title="Reports">
+    - **Admin:** Full access to all financial data
+    - **Assistant:** View all, sensitive operations locked
+    - **Artist:** View own only, cannot export or refund
+  </Accordion>
+  
+  <Accordion title="Inventory">
+    - **Admin:** Full control
+    - **Assistant:** View allowed, modifications locked
+    - **Artist:** View only
+  </Accordion>
+  
+  <Accordion title="Security">
+    - **Admin:** Exclusive access
+    - **Assistant/Artist:** All denied
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={3}>
+  <Card title="Roles Overview" icon="users" href="/roles/overview">
+    Learn about the three-role system
+  </Card>
+  <Card title="Admin Role" icon="shield-halved" href="/roles/admin">
+    Admin capabilities and responsibilities
+  </Card>
+  <Card title="Assistant Role" icon="headset" href="/roles/assistant">
+    Assistant permissions and master code
+  </Card>
+  <Card title="Artist Role" icon="palette" href="/roles/artist">
+    Artist limitations and "own" policies
+  </Card>
+  <Card title="Security Settings" icon="lock" href="/settings/security">
+    Configure master code and audit logs
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/permissions">
+    Permission functions API documentation
+  </Card>
+</CardGroup>

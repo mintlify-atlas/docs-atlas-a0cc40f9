@@ -1,0 +1,370 @@
+---
+title: 'Product Model'
+description: 'Product inventory data model for tattoo studio supplies and consumables'
+---
+
+## Overview
+
+The `Product` model represents inventory items in the tattoo studio, including supplies, consumables, and equipment with stock tracking, supplier information, and expiration management.
+
+## Model Definition
+
+```python
+from sqlalchemy import String, Float, Integer, Boolean
+from sqlalchemy.orm import Mapped, mapped_column
+
+class Product(Base):
+    __tablename__ = "products"
+```
+
+## Fields
+
+### Primary Key
+
+<ResponseField name="id" type="int" required>
+  Unique identifier for the product (auto-increment)
+</ResponseField>
+
+### Product Identification
+
+<ResponseField name="sku" type="str" required>
+  Stock Keeping Unit - unique product code
+  
+  **Length:** Maximum 50 characters
+  
+  **Example:** "INK-BLK-001", "NDL-RL-7"
+</ResponseField>
+
+<ResponseField name="name" type="str" required>
+  Product name or description
+  
+  **Length:** Maximum 120 characters
+  
+  **Indexed:** Yes, for fast searches
+</ResponseField>
+
+<ResponseField name="category" type="str" default="consumibles">
+  Product category for organization
+  
+  **Length:** Maximum 60 characters
+  
+  **Common Values:** "consumibles", "ink", "needles", "equipment", "aftercare"
+  
+  **Nullable:** True
+</ResponseField>
+
+### Inventory Details
+
+<ResponseField name="unidad" type="str" required>
+  Unit of measurement
+  
+  **Length:** Maximum 50 characters
+  
+  **Examples:** "pieza" (piece), "caja" (box), "ml" (milliliter), "paquete" (package)
+</ResponseField>
+
+<ResponseField name="cost" type="float" default="0.0">
+  Unit cost of the product
+  
+  **Currency:** Assumes studio's default currency
+</ResponseField>
+
+<ResponseField name="stock" type="int" default="0">
+  Current quantity in stock
+</ResponseField>
+
+<ResponseField name="min_stock" type="int" default="0">
+  Minimum stock level for reorder alerts
+  
+  **Usage:** When stock is less than or equal to min_stock, trigger reorder notification
+</ResponseField>
+
+### Expiration Management
+
+<ResponseField name="caduca" type="bool" default="false">
+  Whether the product has an expiration date
+  
+  **Usage:** Determines if expiration tracking is needed
+</ResponseField>
+
+<ResponseField name="fechacaducidad" type="str">
+  Expiration date (if applicable)
+  
+  **Type:** String (date stored as text)
+  
+  **Nullable:** True
+  
+  **Format:** Recommended ISO format (YYYY-MM-DD)
+</ResponseField>
+
+### Supplier Information
+
+<ResponseField name="proveedor" type="str" required>
+  Supplier or vendor name
+  
+  **Length:** Maximum 50 characters
+</ResponseField>
+
+### Status
+
+<ResponseField name="activo" type="bool" default="true">
+  Whether the product is active in the system
+  
+  **Usage:** Allows deactivating discontinued products without deletion
+</ResponseField>
+
+## Database Schema
+
+```sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku VARCHAR(50) NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    category VARCHAR(60) DEFAULT 'consumibles',
+    unidad VARCHAR(50) NOT NULL,
+    cost FLOAT DEFAULT 0.0,
+    stock INTEGER DEFAULT 0,
+    min_stock INTEGER DEFAULT 0,
+    caduca BOOLEAN DEFAULT 0,
+    proveedor VARCHAR(50) NOT NULL,
+    activo BOOLEAN DEFAULT 1,
+    fechacaducidad VARCHAR
+);
+
+CREATE INDEX ix_products_name ON products(name);
+```
+
+## Usage Examples
+
+### Create a New Product
+
+```python
+from data.models.product import Product
+
+# Create a consumable product
+product = Product(
+    sku="INK-BLK-001",
+    name="Black Tattoo Ink - 4oz",
+    category="ink",
+    unidad="bottle",
+    cost=25.00,
+    stock=12,
+    min_stock=5,
+    caduca=True,
+    fechacaducidad="2025-12-31",
+    proveedor="Eternal Ink",
+    activo=True
+)
+db.add(product)
+db.commit()
+```
+
+### Create Equipment Product
+
+```python
+# Equipment typically doesn't expire
+equipment = Product(
+    sku="MACH-ROTARY-001",
+    name="Rotary Tattoo Machine",
+    category="equipment",
+    unidad="pieza",
+    cost=350.00,
+    stock=3,
+    min_stock=1,
+    caduca=False,
+    proveedor="Cheyenne",
+    activo=True
+)
+db.add(equipment)
+db.commit()
+```
+
+### Check Low Stock Items
+
+```python
+# Get products that need reordering
+low_stock = db.query(Product).filter(
+    Product.stock <= Product.min_stock,
+    Product.activo == True
+).all()
+
+print("Low Stock Alert:")
+for product in low_stock:
+    print(f"{product.name}: {product.stock} units (min: {product.min_stock})")
+    print(f"  Supplier: {product.proveedor}")
+```
+
+### Update Stock Levels
+
+```python
+# Add stock (received order)
+product = db.query(Product).filter(Product.sku == "INK-BLK-001").first()
+product.stock += 20  # Received 20 units
+db.commit()
+
+# Deduct stock (used in session)
+product = db.query(Product).filter(Product.sku == "NDL-RL-7").first()
+if product.stock > 0:
+    product.stock -= 1
+    db.commit()
+else:
+    print(f"Out of stock: {product.name}")
+```
+
+### Check Expiring Products
+
+```python
+from datetime import datetime, timedelta
+
+# Get products expiring in next 30 days
+thirty_days = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+
+expiring_soon = db.query(Product).filter(
+    Product.caduca == True,
+    Product.fechacaducidad <= thirty_days,
+    Product.activo == True
+).all()
+
+print("Products expiring soon:")
+for product in expiring_soon:
+    print(f"{product.name} - Expires: {product.fechacaducidad}")
+```
+
+### Get Products by Category
+
+```python
+# Get all ink products
+inks = db.query(Product).filter(
+    Product.category == "ink",
+    Product.activo == True
+).all()
+
+total_value = sum(p.stock * p.cost for p in inks)
+print(f"Total ink inventory value: ${total_value:.2f}")
+```
+
+### Calculate Total Inventory Value
+
+```python
+from sqlalchemy import func
+
+# Calculate total inventory value
+total_value = db.query(
+    func.sum(Product.stock * Product.cost)
+).filter(
+    Product.activo == True
+).scalar() or 0.0
+
+print(f"Total Inventory Value: ${total_value:.2f}")
+```
+
+### Search Products
+
+```python
+# Search products by name
+search_term = "ink"
+products = db.query(Product).filter(
+    Product.name.ilike(f"%{search_term}%"),
+    Product.activo == True
+).all()
+
+for product in products:
+    print(f"{product.name} - Stock: {product.stock} {product.unidad}")
+```
+
+### Deactivate Discontinued Product
+
+```python
+# Soft delete by deactivating
+product = db.query(Product).filter(Product.sku == "OLD-SKU-001").first()
+product.activo = False
+db.commit()
+```
+
+## Inventory Management Patterns
+
+### Reorder Alert
+
+Products with `stock <= min_stock` should trigger reorder notifications:
+
+```python
+def check_reorder_alerts():
+    alerts = db.query(Product).filter(
+        Product.stock <= Product.min_stock,
+        Product.activo == True
+    ).all()
+    
+    for product in alerts:
+        print(f"REORDER: {product.name}")
+        print(f"  Current: {product.stock}, Minimum: {product.min_stock}")
+        print(f"  Supplier: {product.proveedor}")
+```
+
+### Stock Valuation
+
+Calculate the total value of inventory:
+
+```python
+def calculate_inventory_value():
+    products = db.query(Product).filter(Product.activo == True).all()
+    
+    by_category = {}
+    for product in products:
+        category = product.category or "uncategorized"
+        value = product.stock * product.cost
+        
+        if category not in by_category:
+            by_category[category] = 0
+        by_category[category] += value
+    
+    return by_category
+```
+
+### Expiration Tracking
+
+For products with `caduca == True`, monitor the `fechacaducidad` field:
+
+```python
+def check_expired_products():
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    expired = db.query(Product).filter(
+        Product.caduca == True,
+        Product.fechacaducidad < today,
+        Product.stock > 0,
+        Product.activo == True
+    ).all()
+    
+    return expired
+```
+
+## Common Categories
+
+- **ink** - Tattoo inks and pigments
+- **needles** - Tattoo needles (various configurations)
+- **consumibles** - General consumables (gloves, wraps, etc.)
+- **equipment** - Machines, power supplies, furniture
+- **aftercare** - Aftercare products for clients
+- **cleaning** - Sanitization and cleaning supplies
+
+## Units of Measurement
+
+Common values for the `unidad` field:
+
+- **pieza** - Individual pieces
+- **caja** - Box
+- **paquete** - Package
+- **ml** - Milliliters (for liquids)
+- **bottle** - Bottle
+- **set** - Set of items
+
+## Notes
+
+- The `sku` field should be unique but doesn't have a database constraint
+- Use `activo` flag for discontinued products instead of deleting
+- The `fechacaducidad` is stored as a string for flexibility
+- Consider implementing proper date type for `fechacaducidad` in production
+- Stock levels should never be negative (implement validation)
+- The `min_stock` threshold helps prevent stockouts
+- Use the `category` field for organizing and reporting
+- Location in codebase: `data/models/product.py:6`

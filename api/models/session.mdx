@@ -1,0 +1,341 @@
+---
+title: 'TattooSession Model'
+description: 'Tattoo session data model with scheduling, pricing, and payment tracking'
+---
+
+## Overview
+
+The `TattooSession` model represents a tattoo appointment or session, linking clients and artists with scheduling information, pricing, payment tracking, and status management.
+
+## Model Definition
+
+```python
+from sqlalchemy import String, Text, DateTime, Enum, ForeignKey, Float, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+class TattooSession(Base):
+    __tablename__ = "sessions"
+```
+
+## Fields
+
+### Primary Key
+
+<ResponseField name="id" type="int" required>
+  Unique identifier for the session (auto-increment)
+</ResponseField>
+
+### Relationships
+
+<ResponseField name="client_id" type="int" required>
+  Foreign key reference to the client
+  
+  **Foreign Key:** clients.id
+  
+  **On Delete:** CASCADE (session deleted when client is deleted)
+  
+  **Indexed:** Yes
+</ResponseField>
+
+<ResponseField name="artist_id" type="int" required>
+  Foreign key reference to the artist
+  
+  **Foreign Key:** artists.id
+  
+  **On Delete:** RESTRICT (prevents artist deletion if they have sessions)
+  
+  **Indexed:** Yes
+</ResponseField>
+
+### Scheduling
+
+<ResponseField name="start" type="datetime" required>
+  Session start date and time
+  
+  **Indexed:** Yes, for calendar queries
+</ResponseField>
+
+<ResponseField name="end" type="datetime" required>
+  Session end date and time
+  
+  **Indexed:** Yes, for calendar queries
+</ResponseField>
+
+### Session Details
+
+<ResponseField name="status" type="str" default="Activa">
+  Current status of the session
+  
+  **Type:** Enum
+  
+  **Valid Values:**
+  - "Activa" - Active/ongoing session
+  - "Completada" - Completed session
+  - "En espera" - Waiting/scheduled
+  - "Cancelada" - Cancelled session
+</ResponseField>
+
+<ResponseField name="price" type="float" default="0.0">
+  Total price for the session
+</ResponseField>
+
+<ResponseField name="notes" type="str">
+  Additional notes about the session
+  
+  **Type:** Text (unlimited length)
+  
+  **Nullable:** True
+</ResponseField>
+
+### Commission
+
+<ResponseField name="commission_override" type="float">
+  Optional commission rate override for this specific session
+  
+  **Nullable:** True
+  
+  **Usage:** If set, overrides the artist's default `rate_commission`
+  
+  **Example:** 0.55 = 55% commission for this session only
+</ResponseField>
+
+## Relationship Objects
+
+<ResponseField name="client" type="Client">
+  The Client object for this session
+  
+  **Relationship:** Many-to-One
+  
+  **Back Populates:** `sessions` on Client model
+</ResponseField>
+
+<ResponseField name="artist" type="Artist">
+  The Artist object for this session
+  
+  **Relationship:** Many-to-One
+  
+  **Back Populates:** `sessions` on Artist model
+</ResponseField>
+
+<ResponseField name="transactions" type="List[Transaction]">
+  List of all payment transactions for this session
+  
+  **Relationship:** One-to-Many with Transaction
+  
+  **Cascade:** `all, delete-orphan` - transactions deleted when session is deleted
+  
+  **Ordered By:** Transaction.date (chronological order)
+</ResponseField>
+
+## Computed Properties
+
+### transaction
+
+```python
+@property
+def transaction(self) -> Optional[Transaction]:
+    """Returns the last transaction or None (for backward compatibility)."""
+```
+
+<ResponseField name="transaction" type="Transaction | None">
+  The most recent transaction for this session
+  
+  **Note:** Legacy property for backward compatibility. Use `transactions` list for full payment history.
+</ResponseField>
+
+### total_paid
+
+```python
+@property
+def total_paid(self) -> float:
+    """Sum of all non-deleted transaction amounts."""
+```
+
+<ResponseField name="total_paid" type="float">
+  Total amount paid across all transactions (excluding deleted transactions)
+  
+  **Calculation:** Sums all `transaction.amount` where `deleted_flag` is False
+  
+  **Example:** If transactions are [100.0, 50.0, 25.0], returns 175.0
+</ResponseField>
+
+### balance
+
+```python
+@property
+def balance(self) -> float:
+    """Remaining balance (price - total_paid)."""
+```
+
+<ResponseField name="balance" type="float">
+  Remaining balance to be paid
+  
+  **Calculation:** `max(0.0, price - total_paid)`
+  
+  **Example:** If price is 500.0 and total_paid is 300.0, returns 200.0
+  
+  **Note:** Never negative (minimum is 0.0)
+</ResponseField>
+
+## Database Schema
+
+```sql
+CREATE TABLE sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    artist_id INTEGER NOT NULL,
+    start DATETIME NOT NULL,
+    end DATETIME NOT NULL,
+    status VARCHAR DEFAULT 'Activa',
+    price FLOAT DEFAULT 0.0,
+    notes TEXT,
+    commission_override FLOAT,
+    
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX ix_sessions_client_id ON sessions(client_id);
+CREATE INDEX ix_sessions_artist_id ON sessions(artist_id);
+CREATE INDEX ix_sessions_start ON sessions(start);
+CREATE INDEX ix_sessions_end ON sessions(end);
+CREATE INDEX ix_sessions_artist_time ON sessions(artist_id, start, end);
+```
+
+## Usage Examples
+
+### Create a New Session
+
+```python
+from data.models.session_tattoo import TattooSession
+from datetime import datetime, timedelta
+
+# Create a new session
+session = TattooSession(
+    client_id=1,
+    artist_id=2,
+    start=datetime(2024, 3, 15, 10, 0),  # March 15, 2024 at 10:00 AM
+    end=datetime(2024, 3, 15, 14, 0),    # March 15, 2024 at 2:00 PM
+    status="En espera",
+    price=500.0,
+    notes="Full sleeve session - outline work"
+)
+db.add(session)
+db.commit()
+```
+
+### Query Sessions with Payment Info
+
+```python
+# Get session with payment details
+session = db.query(TattooSession).filter(TattooSession.id == 1).first()
+
+print(f"Client: {session.client.name}")
+print(f"Artist: {session.artist.name}")
+print(f"Date: {session.start.strftime('%Y-%m-%d %H:%M')}")
+print(f"Price: ${session.price:.2f}")
+print(f"Total Paid: ${session.total_paid:.2f}")
+print(f"Balance: ${session.balance:.2f}")
+print(f"Status: {session.status}")
+```
+
+### Get Sessions by Date Range
+
+```python
+from datetime import datetime, timedelta
+
+# Get all sessions for next week
+today = datetime.now()
+next_week = today + timedelta(days=7)
+
+sessions = db.query(TattooSession).filter(
+    TattooSession.start >= today,
+    TattooSession.start < next_week,
+    TattooSession.status != "Cancelada"
+).order_by(TattooSession.start).all()
+
+for session in sessions:
+    print(f"{session.start} - {session.client.name} with {session.artist.name}")
+```
+
+### Get Artist's Sessions
+
+```python
+# Get all active sessions for an artist
+artist_sessions = db.query(TattooSession).filter(
+    TattooSession.artist_id == 1,
+    TattooSession.status == "Activa"
+).all()
+
+total_revenue = sum(s.price for s in artist_sessions)
+total_paid = sum(s.total_paid for s in artist_sessions)
+
+print(f"Total Sessions: {len(artist_sessions)}")
+print(f"Total Revenue: ${total_revenue:.2f}")
+print(f"Total Collected: ${total_paid:.2f}")
+```
+
+### Update Session Status
+
+```python
+# Mark session as completed
+session = db.query(TattooSession).filter(TattooSession.id == 1).first()
+session.status = "Completada"
+db.commit()
+```
+
+### Calculate Commission
+
+```python
+# Get commission for a session
+session = db.query(TattooSession).filter(TattooSession.id == 1).first()
+
+# Use session-specific override or artist's default rate
+commission_rate = session.commission_override or session.artist.rate_commission
+artist_earnings = session.total_paid * commission_rate
+studio_earnings = session.total_paid * (1 - commission_rate)
+
+print(f"Commission Rate: {commission_rate * 100}%")
+print(f"Artist Earnings: ${artist_earnings:.2f}")
+print(f"Studio Earnings: ${studio_earnings:.2f}")
+```
+
+## Status Workflow
+
+Typical session status progression:
+
+1. **En espera** - Session is scheduled but hasn't started
+2. **Activa** - Session is currently in progress
+3. **Completada** - Session finished successfully
+4. **Cancelada** - Session was cancelled
+
+## Payment Tracking
+
+The session tracks payments through the `transactions` relationship:
+
+- **Multiple payments:** A session can have multiple transactions (deposits, installments)
+- **total_paid:** Automatically calculated from all non-deleted transactions
+- **balance:** Shows remaining amount (price - total_paid)
+- **Full payment:** When `balance` equals 0.0
+
+## Composite Index
+
+The model includes a composite index for efficient artist schedule queries:
+
+```python
+Index("ix_sessions_artist_time", 
+      TattooSession.artist_id, 
+      TattooSession.start, 
+      TattooSession.end)
+```
+
+This optimizes queries like "get all sessions for artist X between dates Y and Z".
+
+## Notes
+
+- Sessions cascade delete when the client is deleted (ON DELETE CASCADE)
+- Artists cannot be deleted if they have sessions (ON DELETE RESTRICT)
+- The `commission_override` allows per-session commission rates
+- Use `total_paid` and `balance` properties instead of calculating manually
+- All datetime fields should include timezone information in production
+- Location in codebase: `data/models/session_tattoo.py:14`

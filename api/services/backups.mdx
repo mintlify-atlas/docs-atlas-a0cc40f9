@@ -1,0 +1,445 @@
+---
+title: 'Backups Service'
+description: 'Database backup creation, restoration, and management using SQLite backup API'
+icon: 'floppy-disk'
+---
+
+The backups service provides automated and manual database backup functionality with intelligent cleanup and restoration capabilities.
+
+## Overview
+
+Location: `services/backups.py`
+
+This module handles:
+- On-demand database backups
+- Automated daily backup scheduling
+- Backup file management and cleanup
+- Database restoration from backup files
+- Backup listing and metadata
+
+## Configuration
+
+<ParamField path="DB_PATH" type="Path">
+  Database file path from `data.db.session.DB_PATH`
+</ParamField>
+
+<ParamField path="MAX_BACKUPS" type="int" default={20}>
+  Maximum number of backup files to retain
+</ParamField>
+
+<ParamField path="TZ" type="ZoneInfo" default="America/Hermosillo">
+  Timezone for backup timestamps
+</ParamField>
+
+<Info>
+  Backup files are stored in a `backups/` directory alongside the database file. The directory is automatically created if it doesn't exist.
+</Info>
+
+## Functions
+
+### create_backup_now
+
+Creates an immediate backup of the database using SQLite's backup API.
+
+**Parameters:** None
+
+**Returns:** `Optional[Path]` - Path to the created backup file, or `None` if backup failed
+
+<CodeGroup>
+
+```python Usage
+from services.backups import create_backup_now
+
+# Create a manual backup
+backup_path = create_backup_now()
+
+if backup_path:
+    print(f"Backup created: {backup_path}")
+    print(f"File size: {backup_path.stat().st_size} bytes")
+else:
+    print("Backup failed")
+```
+
+```python Function signature
+def create_backup_now() -> Optional[Path]:
+    """
+    Creates an immediate backup of the database using SQLite's backup API.
+    Returns the path of the created file or None if it failed.
+    """
+    db_path = _get_db_path()
+    if not db_path.exists():
+        return None
+
+    backup_dir = _get_backup_dir()
+    now = datetime.now(TZ)
+    ts = now.strftime("%Y%m%d_%H%M%S")
+    dest = backup_dir / f"backup_{ts}.db"
+
+    try:
+        src = sqlite3.connect(str(db_path))
+        dst = sqlite3.connect(str(dest))
+        src.backup(dst)
+        dst.close()
+        src.close()
+    except Exception:
+        try:
+            dest.unlink()
+        except Exception:
+            pass
+        return None
+
+    # Save last backup timestamp
+    settings = _load_settings()
+    settings["last_backup_at"] = now.isoformat()
+    _save_settings(settings)
+
+    # Cleanup old backups
+    _cleanup_old_backups(backup_dir)
+
+    return dest
+```
+
+</CodeGroup>
+
+<Tip>
+  This function uses SQLite's built-in backup API, which is more reliable than file copying as it handles concurrent access and ensures data consistency.
+</Tip>
+
+---
+
+### create_backup_if_needed
+
+Creates a backup only if one hasn't been created today.
+
+**Parameters:** None
+
+**Returns:** `Optional[Path]` - Path to the created backup file, or `None` if backup wasn't needed or failed
+
+<CodeGroup>
+
+```python Usage
+from services.backups import create_backup_if_needed
+
+# Called during application startup
+backup_path = create_backup_if_needed()
+
+if backup_path:
+    print(f"Daily backup created: {backup_path}")
+else:
+    print("Daily backup not needed or failed")
+```
+
+```python Automatic daily backup
+from services.backups import create_backup_if_needed
+import schedule
+
+# Schedule automatic daily backups
+schedule.every().day.at("03:00").do(create_backup_if_needed)
+
+while True:
+    schedule.run_pending()
+    time.sleep(60)
+```
+
+</CodeGroup>
+
+<Info>
+  This function checks the `last_backup_at` timestamp in `settings.json`. If a backup already exists for the current day (Hermosillo timezone), it skips creating a new one.
+</Info>
+
+---
+
+### list_backups
+
+Returns a list of all available backup files with metadata.
+
+**Parameters:** None
+
+**Returns:** `List[Dict]` - List of backup information dictionaries
+
+Each dictionary contains:
+- `path` (Path): Full path to the backup file
+- `name` (str): Filename
+- `display` (str): Formatted timestamp (dd/mm/yyyy hh:mm)
+- `size` (int): File size in bytes
+
+<CodeGroup>
+
+```python Usage
+from services.backups import list_backups
+
+backups = list_backups()
+
+print(f"Found {len(backups)} backups:")
+for backup in backups:
+    size_mb = backup['size'] / (1024 * 1024)
+    print(f"  {backup['display']}: {backup['name']} ({size_mb:.2f} MB)")
+```
+
+```python Select backup for restoration
+from services.backups import list_backups, restore_backup
+
+backups = list_backups()
+
+if backups:
+    # Show user the list
+    for i, backup in enumerate(backups):
+        print(f"{i+1}. {backup['display']} - {backup['name']}")
+    
+    # User selects a backup
+    choice = int(input("Select backup to restore: ")) - 1
+    selected = backups[choice]
+    
+    # Restore it
+    if restore_backup(selected['path']):
+        print("Restore successful")
+    else:
+        print("Restore failed")
+```
+
+```python Function signature
+def list_backups() -> List[Dict]:
+    """
+    Lists available backup files with metadata.
+    
+    Returns:
+        List of dicts with keys: path, name, display, size
+    """
+    backup_dir = _get_backup_dir()
+    items: List[Dict] = []
+
+    for p in sorted(backup_dir.glob("backup_*.db"), 
+                    key=lambda x: x.stat().st_mtime, 
+                    reverse=True):
+        st = p.stat()
+        dt = datetime.fromtimestamp(st.st_mtime, TZ)
+        items.append({
+            "path": p,
+            "name": p.name,
+            "display": dt.strftime("%d/%m/%Y %H:%M"),
+            "size": st.st_size,
+        })
+    return items
+```
+
+</CodeGroup>
+
+<Note>
+  Backups are sorted by modification time in descending order, so the most recent backup appears first.
+</Note>
+
+---
+
+### restore_backup
+
+Restores the database from a backup file.
+
+<ParamField path="backup_path" type="Path" required>
+  Path to the backup file to restore from
+</ParamField>
+
+**Returns:** `bool` - `True` if restoration succeeded, `False` otherwise
+
+<CodeGroup>
+
+```python Usage
+from services.backups import list_backups, restore_backup
+from pathlib import Path
+
+backup_file = Path("/path/to/backups/backup_20260304_150000.db")
+
+if restore_backup(backup_file):
+    print("Database restored successfully")
+    print("Restart the application to use the restored database")
+else:
+    print("Failed to restore database")
+```
+
+```python With confirmation prompt
+from services.backups import restore_backup
+from pathlib import Path
+
+backup_path = Path("/path/to/backup.db")
+
+print("WARNING: This will overwrite the current database!")
+confirm = input("Type 'RESTORE' to confirm: ")
+
+if confirm == "RESTORE":
+    if restore_backup(backup_path):
+        print("Restoration complete")
+    else:
+        print("Restoration failed")
+else:
+    print("Restoration cancelled")
+```
+
+```python Function signature
+def restore_backup(backup_path: Path) -> bool:
+    """
+    Restores the database from a backup file.
+    Creates a safety copy of the current database before overwriting.
+    """
+    backup_path = Path(backup_path)
+    if not backup_path.exists():
+        return False
+
+    db_path = _get_db_path()
+
+    try:
+        # Create safety backup of current database
+        if db_path.exists():
+            now = datetime.now(TZ)
+            ts = now.strftime("%Y%m%d_%H%M%S")
+            safety = db_path.with_suffix(db_path.suffix + f".before_restore_{ts}")
+            shutil.copy2(db_path, safety)
+
+        # Restore from backup
+        shutil.copy2(backup_path, db_path)
+        return True
+    except Exception:
+        return False
+```
+
+</CodeGroup>
+
+<Warning>
+  This function creates a safety backup of the current database before overwriting it. The safety backup is saved with a `.before_restore_TIMESTAMP` suffix. Always ensure you have recent backups before performing a restore.
+</Warning>
+
+---
+
+### get_last_backup_display
+
+Returns a formatted string showing when the last backup was created.
+
+**Parameters:** None
+
+**Returns:** `str` - Formatted timestamp or "—" if no backup exists
+
+<CodeGroup>
+
+```python Usage
+from services.backups import get_last_backup_display
+
+# Display in status bar or UI
+last_backup = get_last_backup_display()
+print(f"Last backup: {last_backup}")
+# Output: Last backup: 04/03/2026 15:30
+# or: Last backup: —
+```
+
+```python Function signature
+def get_last_backup_display() -> str:
+    """
+    Returns a friendly display string for the last backup time.
+    Returns '—' if never backed up, or 'dd/mm/yyyy hh:mm' if available.
+    Always in Hermosillo timezone.
+    """
+    settings = _load_settings()
+    last_str = settings.get("last_backup_at")
+    if not last_str:
+        return "—"
+
+    try:
+        dt = datetime.fromisoformat(last_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=TZ)
+        else:
+            dt = dt.astimezone(TZ)
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return "—"
+```
+
+</CodeGroup>
+
+## Backup Management
+
+### Automatic Cleanup
+
+The service automatically maintains the backup directory:
+
+- Keeps only the most recent `MAX_BACKUPS` files (default: 20)
+- Older backups are automatically deleted
+- Cleanup runs after each new backup creation
+
+### Backup File Naming
+
+Backup files follow this naming pattern:
+```
+backup_YYYYMMDD_HHMMSS.db
+```
+
+Examples:
+- `backup_20260304_153045.db` - March 4, 2026 at 15:30:45
+- `backup_20260303_030000.db` - March 3, 2026 at 03:00:00
+
+### Storage Location
+
+Backups are stored in:
+```
+<database_directory>/backups/
+```
+
+For example, if your database is at `/data/studio.db`, backups will be in `/data/backups/`.
+
+## Backup Strategy
+
+<Steps>
+  <Step title="Automatic daily backups">
+    Call `create_backup_if_needed()` during application startup or via scheduled task.
+  </Step>
+  
+  <Step title="Manual backups before critical operations">
+    Use `create_backup_now()` before major data migrations or system changes.
+  </Step>
+  
+  <Step title="Verify backups regularly">
+    Use `list_backups()` to confirm backups are being created and stored properly.
+  </Step>
+  
+  <Step title="Test restoration">
+    Periodically test the restore process in a non-production environment.
+  </Step>
+</Steps>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Backup frequency">
+    The default daily backup schedule is suitable for most tattoo studios. For high-volume studios, consider creating manual backups during peak hours or before closing.
+  </Accordion>
+  
+  <Accordion title="Off-site backups">
+    The backup service stores files locally. Implement additional off-site backup mechanisms by copying the backup files to cloud storage or external drives.
+  </Accordion>
+  
+  <Accordion title="Retention policy">
+    The default 20 backup retention allows for approximately 3 weeks of daily backups. Adjust `MAX_BACKUPS` based on your storage capacity and compliance requirements.
+  </Accordion>
+  
+  <Accordion title="Database size monitoring">
+    Monitor the size of backup files using `list_backups()`. Significant size increases may indicate data accumulation that needs attention.
+  </Accordion>
+</AccordionGroup>
+
+## Error Handling
+
+<Note>
+  All functions handle errors gracefully:
+  - `create_backup_now()` returns `None` on failure and cleans up incomplete files
+  - `restore_backup()` creates a safety backup before attempting restoration
+  - Failed backups don't update the `last_backup_at` timestamp
+  - Database connections are properly closed even on exceptions
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Backup & Restore Guide" icon="book" href="/guides/backup-restore">
+    User guide for backup and restoration procedures
+  </Card>
+  <Card title="Database Session" icon="database" href="/api/database/session">
+    Database connection and session management
+  </Card>
+</CardGroup>

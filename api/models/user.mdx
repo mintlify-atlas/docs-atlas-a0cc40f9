@@ -1,0 +1,264 @@
+---
+title: 'User Model'
+description: 'User authentication and account management data model'
+---
+
+## Overview
+
+The `User` model represents system users with authentication, role-based access control, and personal information. Users can have different roles (admin, assistant, or artist) and optionally be linked to an Artist record.
+
+## Model Definition
+
+```python
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Date
+
+class User(Base):
+    __tablename__ = "users"
+```
+
+## Fields
+
+### Primary Key
+
+<ResponseField name="id" type="Integer" required>
+  Unique identifier for the user
+</ResponseField>
+
+### Authentication
+
+<ResponseField name="username" type="String(64)" required>
+  Unique username for login
+  
+  **Constraints:** Unique, indexed
+  
+  **Length:** Maximum 64 characters
+</ResponseField>
+
+<ResponseField name="password_hash" type="String(255)" required>
+  Hashed password (never store plain text passwords)
+  
+  **Length:** Maximum 255 characters to accommodate various hashing algorithms
+</ResponseField>
+
+### Authorization
+
+<ResponseField name="role" type="String(16)" required>
+  User's role in the system
+  
+  **Valid Values:** "admin", "assistant", "artist"
+  
+  **Indexed:** Yes, for role-based queries
+</ResponseField>
+
+<ResponseField name="artist_id" type="Integer">
+  Foreign key reference to artists table (only used when role == "artist")
+  
+  **Foreign Key:** artists.id
+  
+  **Nullable:** True (only set for artist users)
+</ResponseField>
+
+<ResponseField name="is_active" type="Boolean" default="true">
+  Whether the user account is active
+  
+  **Usage:** Allows disabling accounts without deletion
+</ResponseField>
+
+### Personal Information
+
+<ResponseField name="name" type="String(120)">
+  User's full name (not the same as artist name)
+</ResponseField>
+
+<ResponseField name="birthdate" type="Date">
+  User's date of birth
+</ResponseField>
+
+<ResponseField name="email" type="String(120)">
+  User's email address
+  
+  **Indexed:** Yes
+  
+  **Note:** Can have unique constraint (conditional unique index)
+</ResponseField>
+
+<ResponseField name="phone" type="String(32)">
+  Contact phone number
+</ResponseField>
+
+<ResponseField name="instagram" type="String(64)">
+  Instagram handle (stored without "@" prefix)
+  
+  **Indexed:** Yes
+</ResponseField>
+
+### Metadata
+
+<ResponseField name="created_at" type="DateTime" default="func.now()">
+  Timestamp when the user account was created
+  
+  **Auto-generated:** Yes (server default)
+</ResponseField>
+
+<ResponseField name="last_login" type="DateTime">
+  Timestamp of the user's last login
+  
+  **Nullable:** True
+</ResponseField>
+
+## Database Schema
+
+```sql
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    
+    -- Authentication
+    username VARCHAR(64) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    
+    -- Authorization
+    role VARCHAR(16) NOT NULL,
+    artist_id INTEGER,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    
+    -- Personal Information
+    name VARCHAR(120),
+    birthdate DATE,
+    email VARCHAR(120),
+    phone VARCHAR(32),
+    instagram VARCHAR(64),
+    
+    -- Metadata
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_login DATETIME,
+    
+    FOREIGN KEY (artist_id) REFERENCES artists(id)
+);
+
+CREATE UNIQUE INDEX ix_users_username ON users(username);
+CREATE INDEX ix_users_role ON users(role);
+CREATE INDEX ix_users_email ON users(email);
+CREATE INDEX ix_users_instagram ON users(instagram);
+```
+
+## User Roles
+
+### Admin
+- Full system access
+- Can manage all users, artists, clients, and settings
+- No `artist_id` association
+
+### Assistant
+- Can manage clients and sessions
+- Limited access to financial reports
+- No `artist_id` association
+
+### Artist
+- Can view and manage their own sessions
+- Can view their own portfolio and reports
+- Must have `artist_id` linking to an Artist record
+
+## Usage Examples
+
+### Create a New User
+
+```python
+from data.models.user import User
+from werkzeug.security import generate_password_hash
+
+# Create admin user
+admin_user = User(
+    username="admin",
+    password_hash=generate_password_hash("secure_password"),
+    role="admin",
+    name="Admin User",
+    email="admin@studio.com",
+    is_active=True
+)
+db.add(admin_user)
+db.commit()
+
+# Create artist user
+artist_user = User(
+    username="luna_artist",
+    password_hash=generate_password_hash("artist_password"),
+    role="artist",
+    artist_id=1,  # Link to Artist record
+    name="Luna Martinez",
+    email="luna@studio.com",
+    instagram="lunatattoos",
+    is_active=True
+)
+db.add(artist_user)
+db.commit()
+```
+
+### Authenticate User
+
+```python
+from werkzeug.security import check_password_hash
+
+def authenticate_user(username: str, password: str) -> User:
+    user = db.query(User).filter(
+        User.username == username,
+        User.is_active == True
+    ).first()
+    
+    if user and check_password_hash(user.password_hash, password):
+        # Update last login
+        user.last_login = datetime.now()
+        db.commit()
+        return user
+    return None
+```
+
+### Query Users by Role
+
+```python
+# Get all active artists
+artist_users = db.query(User).filter(
+    User.role == "artist",
+    User.is_active == True
+).all()
+
+for user in artist_users:
+    print(f"{user.name} (@{user.instagram})")
+```
+
+### Update User Information
+
+```python
+# Update user email and phone
+user = db.query(User).filter(User.id == 1).first()
+user.email = "newemail@studio.com"
+user.phone = "555-0199"
+db.commit()
+```
+
+### Deactivate User
+
+```python
+# Soft delete by deactivating
+user = db.query(User).filter(User.id == 1).first()
+user.is_active = False
+db.commit()
+```
+
+## Security Considerations
+
+- **Never store plain text passwords** - always use `password_hash`
+- Use strong hashing algorithms (bcrypt, argon2, scrypt)
+- The `is_active` flag provides soft deletion for security audits
+- `last_login` helps track account activity
+- Username must be unique across the system
+- Artist users must have a valid `artist_id`
+
+## Notes
+
+- The `username` field is the primary authentication credential
+- `name` is the user's real name, separate from artist stage names
+- Instagram handles are stored without the "@" prefix
+- Email can have a conditional unique index (implementation dependent)
+- `artist_id` creates a link between user authentication and artist business logic
+- The `role` field determines permissions and access levels
+- Location in codebase: `data/models/user.py:4`

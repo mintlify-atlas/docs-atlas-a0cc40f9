@@ -1,0 +1,440 @@
+---
+title: Artist Portfolios
+description: Visual portfolio management system with image galleries, metadata tagging, and client session integration
+---
+
+## Overview
+
+The Artist Portfolio system provides a comprehensive image gallery for managing and showcasing tattoo work. Each artist builds their portfolio with high-quality images, detailed metadata, and automatic linking to clients and sessions for complete work tracking.
+
+## Portfolio Structure
+
+### User-Based Organization
+
+Portfolios are organized by user account:
+- **Artists** - Build their individual portfolios
+- **Admin/Assistants** - Can upload to any artist's portfolio
+- **Images linked to sessions** - Automatically associated with clients and transactions
+
+### Sidebar Navigation
+
+The sidebar displays all users with portfolio access:
+
+**User Cards Show:**
+- Profile avatar (44px circular image)
+- Full name or username
+- Role badge (Artist, Admin, Assistant)
+- Active/Inactive status
+- Image count
+- Colored dot indicator (matches artist color)
+- Colored top border (matches artist color)
+
+<Tip>
+Artist colors are synchronized with the calendar system for consistent visual identity across the application.
+</Tip>
+
+## Adding Images
+
+<Steps>
+  <Step title="Select User">
+    Click a user card in the sidebar to open their portfolio
+  </Step>
+  
+  <Step title="Click Add Images (+)">
+    Click the **+** button in the toolbar
+  </Step>
+  
+  <Step title="Select Files">
+    Choose one or more images from your computer
+    
+    **Supported formats:**
+    - PNG (.png)
+    - JPEG (.jpg, .jpeg)
+    - WebP (.webp)
+    - BMP (.bmp)
+  </Step>
+  
+  <Step title="Link to Session (Optional)">
+    For artists, you can link images to a recent session:
+    - System shows up to 30 recent sessions
+    - Format: `#ID · Date · Client Name`
+    - Select "— No Link —" to skip
+    
+    Linking automatically associates:
+    - Client
+    - Session details
+    - Transaction data
+  </Step>
+  
+  <Step title="Confirm Upload">
+    Images are uploaded and added to the gallery
+    
+    Success message shows number of images added
+  </Step>
+</Steps>
+
+## Image Metadata
+
+### Portfolio Item Fields
+
+Each image includes rich metadata:
+
+```python
+id: Integer (primary key)
+user_id: Integer (Foreign Key → User)
+artist_id: Integer (Foreign Key → Artist)  
+client_id: Integer (Foreign Key → Client)
+session_id: Integer (Foreign Key → TattooSession)
+transaction_id: Integer (Foreign Key → Transaction)
+
+path: String - File system path
+thumb_path: String - Thumbnail path (optional)
+caption: Text - Image description
+
+style: String - Tattoo style tag
+body_area: String - Body location
+color_mode: String - "color" or "bn" (black & white)
+fresh_or_healed: String - "fresh" or "healed"
+
+is_public: Boolean - Show in public gallery
+is_cover: Boolean - Use as cover image
+
+created_at: DateTime - Upload timestamp
+```
+
+### Automatic Relationships
+
+When linked to a session, the system automatically populates:
+- **artist_id** - From session artist
+- **client_id** - From session client  
+- **session_id** - Direct session link
+
+This creates a complete history connecting:
+- Who did the tattoo (artist)
+- Who received it (client)
+- When it was done (session)
+- How much they paid (transaction)
+
+## Gallery Views
+
+### Grid Layout
+
+Responsive flow layout that adapts to screen size:
+- Cards arrange automatically in rows
+- 220px wide cards with 260px height images
+- 12px horizontal and vertical spacing
+- Smooth hover effects
+
+### Portfolio Cards
+
+Each card displays:
+- **Image** - Scaled to 260px height maintaining aspect ratio
+- **Date** - Creation date in YYYY-MM-DD format
+- **Shadow effect** - Subtle depth with 14px blur radius
+- **Hover state** - Border highlights from rgba(255,255,255,0.08) to 0.18
+
+<Info>
+Missing images show a gray placeholder with "no img" text instead of breaking the layout.
+</Info>
+
+## Filtering and Sorting
+
+### Available Filters
+
+Toolbar filter dropdowns:
+
+**Style Filter**
+- Dynamically populated from uploaded images
+- Shows only styles present in current portfolio
+- "All Styles" to show everything
+
+**Body Area Filter**  
+- Zones where tattoos are located
+- Auto-populated from image metadata
+- "All Zones" option
+
+**Color Mode Filter**
+- All
+- Color tattoos only
+- Black & white only
+
+**Fresh/Healed Filter**
+- All
+- Fresh tattoos (just completed)
+- Healed tattoos (after healing period)
+
+**Sort Order**
+- Most Recent (default) - Newest first
+- Oldest First - Chronological order
+
+### Filter Behavior
+
+- Filters apply instantly without page reload
+- Multiple filters combine with AND logic
+- "Clear Filters" button resets all to defaults
+- Filter values update when switching between artists
+
+<Note>
+Filters only affect UI display - they don't modify the database. This ensures fast, responsive filtering even with large portfolios.
+</Note>
+
+## Image Detail View
+
+Click any image to open the detail dialog:
+
+### Detail Dialog Contents
+
+**Left Side - Large Image**
+- Full-size view (scaled to 640px width max)
+- Maintains aspect ratio
+- High-quality rendering with antialiasing
+
+**Right Side - Metadata**
+- **Date**: Upload date
+- **Artist**: Artist name with link
+- **Session**: Session ID, status, and price
+- **Client**: Client name with link
+- **Transaction**: Transaction ID, amount, and payment method
+- **Notes**: Caption or description
+
+**Dialog Features**:
+- Frameless design with rounded corners
+- Draggable - Click and drag to reposition
+- Opens at cursor position
+- Dark theme (#1f242b background)
+- **Close** button to dismiss
+
+## Client Gallery Integration
+
+In the Client Detail view:
+
+### Client Portfolio Tab
+
+Shows all images linked to that specific client:
+- Filtered by `client_id`
+- Up to 200 images (configurable)
+- Same card and detail view as main portfolio
+- Sorted by most recent first
+
+**Use Cases:**
+- Show client their previous work
+- Reference old tattoos for new designs
+- Track client's collection over time
+- Before/after comparisons
+
+## Storage and Organization
+
+### File System Layout
+
+```
+data/uploads/portfolios/
+  ├── 1/              # User ID 1
+  │   ├── image1.jpg
+  │   ├── image2.png
+  │   └── image3.webp
+  ├── 2/              # User ID 2
+  │   └── ...
+  └── 3/              # User ID 3
+      └── ...
+```
+
+### File Naming
+
+- Original filenames preserved when possible
+- Automatic incremental suffix for duplicates: `image_1.jpg`, `image_2.jpg`
+- No overwrites - existing files never replaced
+
+### Legacy Migration
+
+Automatic migration from old storage location:
+- Old: `assets/uploads/portfolios/`
+- New: `data/uploads/portfolios/`
+- Copies files on first access
+- Preserves directory structure
+
+## Permissions
+
+| Action | Admin | Assistant | Artist |
+|--------|-------|-----------|--------|
+| View all portfolios | ✓ | ✓ | ✓ |
+| Upload to own portfolio | ✓ | ✓ | ✓ |
+| Upload to other portfolios | ✓ | ✓ | ✗ |
+| Delete images | ✓ | ✓ | Own only |
+| Edit metadata | ✓ | ✓ | Own only |
+| View private images | ✓ | ✓ | Own only |
+| Set cover image | ✓ | ✓ | Own only |
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Image Quality Standards">
+    **Recommended specifications:**
+    - Minimum resolution: 1920×1080 pixels
+    - Maximum file size: 10 MB per image
+    - Format: JPEG for photos, PNG for graphics
+    - Color space: sRGB for consistent display
+    
+    **Photography tips:**
+    - Natural lighting or professional studio lights
+    - Neutral background (white or gray)
+    - Sharp focus on the tattoo
+    - Multiple angles for complex pieces
+    - Before/after shots for transformations
+  </Accordion>
+  
+  <Accordion title="Metadata Tagging">
+    **Why tag your images:**
+    - Quick filtering for client consultations
+    - Portfolio curation by style
+    - Marketing material organization
+    - Track style evolution over time
+    
+    **Suggested tagging workflow:**
+    1. Upload images from session
+    2. Immediately tag style and body area
+    3. Mark color mode and fresh/healed status
+    4. Add descriptive caption
+    5. Link to session if not auto-linked
+  </Accordion>
+  
+  <Accordion title="Portfolio Curation">
+    **Building a strong portfolio:**
+    - Quality over quantity - be selective
+    - Show variety of styles you're confident in
+    - Include different body areas
+    - Mix fresh and healed shots
+    - Update regularly with latest work
+    
+    **Use is_public wisely:**
+    - Mark best work as public
+    - Keep practice pieces private
+    - Hide client-requested private tattoos
+  </Accordion>
+  
+  <Accordion title="Client Privacy">
+    **Respect client consent:**
+    - Always obtain image consent (tracked in client record)
+    - Mark non-consented images as private
+    - Blur faces if client requests
+    - Remove images if client revokes consent
+    - Don't share identifying information in captions
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Features
+
+### Cover Images
+
+Set a cover image for each artist:
+- Shows first in galleries
+- Used for artist profile displays
+- Only one cover per artist
+- Setting new cover unsets previous
+
+### Public/Private Toggle
+
+**Public images (`is_public: true`):**
+- Visible in public-facing galleries
+- Shareable on social media
+- Searchable by clients
+
+**Private images (`is_public: false`):**
+- Only visible to studio staff
+- Hidden from public portfolio
+- Still accessible via client records
+- Useful for reference photos
+
+### Session Linking Benefits
+
+Linking images to sessions provides:
+
+1. **Complete work history** - See all photos from a session
+2. **Financial tracking** - Connect images to revenue
+3. **Client journey** - Visual timeline per client
+4. **Artist analytics** - Track productivity and style focus
+5. **Portfolio stats** - Revenue per image, popular styles
+
+## Related Features
+
+- [Client Management](/features/client-management) - Client gallery integration
+- [Appointment Scheduling](/features/appointment-scheduling) - Link images to sessions
+- [Financial Tracking](/features/financial-tracking) - Track image-to-revenue conversion
+
+## Technical Details
+
+### Database Schema
+
+```sql
+CREATE TABLE portfolio_items (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  artist_id INTEGER REFERENCES artists(id),
+  client_id INTEGER REFERENCES clients(id),
+  session_id INTEGER REFERENCES sessions(id),
+  transaction_id INTEGER REFERENCES transactions(id),
+  path TEXT NOT NULL,
+  thumb_path TEXT,
+  caption TEXT,
+  style TEXT,
+  body_area TEXT,
+  color_mode TEXT,
+  fresh_or_healed TEXT,
+  is_public BOOLEAN DEFAULT TRUE,
+  is_cover BOOLEAN DEFAULT FALSE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Image Processing
+
+- **No automatic resizing** - Original images preserved
+- **Lazy loading** - Images load as you scroll
+- **Thumbnail generation** - Optional future enhancement
+- **Format conversion** - None applied (preserve original)
+
+### Performance Optimization
+
+- **Batch loading** - 60-200 images per load
+- **Offset pagination** - For large portfolios
+- **In-memory filtering** - Instant UI updates
+- **Lazy rendering** - Cards created on-demand
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Images Not Displaying">
+    **Check:**
+    - File path exists in database
+    - File actually exists on disk at `data/uploads/portfolios/{user_id}/`
+    - File permissions allow read access
+    - Supported image format (PNG, JPEG, WebP, BMP)
+    - Image not corrupted (try opening in external viewer)
+  </Accordion>
+  
+  <Accordion title="Upload Fails">
+    **Possible causes:**
+    - Disk space full
+    - No write permission to uploads folder
+    - Filename too long or contains special characters
+    - File already locked by another process
+    
+    **Solutions:**
+    - Check available disk space
+    - Verify folder permissions
+    - Try renaming file to simple name
+    - Close other applications using the file
+  </Accordion>
+  
+  <Accordion title="Session Link Not Working">
+    **Requirements:**
+    - User must have artist_id assigned
+    - Artist must have sessions in database
+    - Sessions must be within recent 30
+    - Session must have valid start date
+    
+    **To fix:**
+    - Verify user.artist_id is set correctly
+    - Check sessions table for that artist
+    - Ensure session.start is a valid datetime
+  </Accordion>
+</AccordionGroup>

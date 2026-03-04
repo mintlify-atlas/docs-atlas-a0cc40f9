@@ -1,0 +1,507 @@
+---
+title: Financial Tracking
+description: Comprehensive revenue tracking, payment processing, and financial reporting with artist commission management
+---
+
+## Overview
+
+The Financial Tracking system provides complete visibility into your studio's revenue, expenses, and artist commissions. Track every payment, generate detailed reports, and analyze financial performance with powerful filtering and visualization tools.
+
+## Core Concepts
+
+### Transaction Model
+
+Every payment is recorded as a transaction:
+
+```python
+id: Integer (primary key)
+session_id: Integer (Foreign Key → TattooSession, optional)
+artist_id: Integer (Foreign Key → Artist, required)
+
+amount: Float - Total collected
+method: String - Payment method ("Efectivo", "Tarjeta", "Transferencia", "Mixto")
+concept: String(200) - Free-text description
+date: DateTime - When payment occurred
+
+commission_amount: Float - Calculated commission
+deleted_flag: Boolean - Soft delete (default: False)
+
+created_at: DateTime - Record creation timestamp  
+updated_at: DateTime - Last modification timestamp
+```
+
+### Multiple Transactions Per Session
+
+Sessions can have multiple payment transactions:
+- **Deposit** - Initial payment to reserve time
+- **Final payment** - Balance after session completion
+- **Tip** - Additional gratuity
+- **Refund** - Negative amount for returns
+
+The system tracks:
+- `total_paid` - Sum of all non-deleted transactions
+- `balance` - Remaining amount owed (`price - total_paid`)
+
+<Info>
+Soft delete (`deleted_flag`) allows "removing" transactions while preserving audit history. Deleted transactions don't count toward totals.
+</Info>
+
+## Reports Page
+
+### Time Period Selection
+
+Filter by predefined or custom date ranges:
+
+**Quick Periods** (clickable chips):
+- **Today** - Current day only
+- **This Week** - Sunday to Saturday of current week
+- **This Month** - First to last day of current month
+- **Custom Range** - Select any from/to dates
+
+When "Custom Range" selected:
+- Date pickers appear for start and end dates
+- Calendar popup for easy selection
+- Range validation (end >= start)
+
+### Filters
+
+**Artist Filter**
+- Dropdown with all active artists
+- "All Artists" to see studio-wide totals
+- Artists see only their own data (auto-locked)
+
+**Payment Method Filter**  
+- All payment types
+- Cash only ("Efectivo")
+- Card only ("Tarjeta")  
+- Transfer only ("Transferencia")
+
+<Note>
+Artist role users cannot change the artist filter - they only see their own transactions for privacy and security.
+</Note>
+
+### Transaction Table
+
+Detailed list of all matching transactions:
+
+| Column | Description |
+|--------|-------------|
+| **Date** | Payment date (dd/MM/yyyy) |
+| **Client** | Client name or "—" for standalone payments |
+| **Amount** | Total payment in currency format ($X,XXX.XX) |
+| **Payment** | Payment method |
+| **Artist** | Artist who performed the service |
+
+**Table Features:**
+- Sortable columns (click header)
+- Alternating row colors for readability
+- Right-aligned numeric amounts
+- Read-only (view-only, no inline editing)
+
+### Revenue Chart
+
+Line graph showing daily revenue trends:
+
+**Chart Features:**
+- **X-axis**: Days in selected period (dd/MM format)
+- **Y-axis**: Revenue amount ($X format)
+- **Multiple series**: One line per artist (when viewing all)
+- **Color coding**: Matches artist colors from system
+- **Interactive legend**: Click to show/hide artist lines
+- **Hover tooltips**: Show exact values on data points
+- **Auto-scaling**: Y-axis adjusts to data range
+
+**Line Styling:**
+- 2px width for clarity
+- Colored by artist (from `artist_colors.json`)
+- Points visible at each data point
+- Smooth antialiasing
+
+**Smart Label Spacing:**
+- Shows ~10 X-axis labels for readability
+- 45° angle for longer date ranges (>14 days)
+- All dates plotted, only subset labeled
+
+<Tip>
+The chart only displays artists with revenue >$0 in the selected period to reduce clutter. Use the artist filter to focus on a specific artist.
+</Tip>
+
+### Total Revenue Display
+
+Prominent total in header:
+- **Large, bold font** for quick scanning
+- **Currency formatted**: $X,XXX.XX
+- **Updates live** as filters change
+- **Period label** shows what the total represents
+
+## Payment Processing
+
+### Recording a Payment
+
+<Steps>
+  <Step title="Open Payment Dialog">
+    From appointment detail or cash register:
+    - Click "Process Payment" or "Complete Session"
+    - Payment dialog opens
+  </Step>
+  
+  <Step title="Enter Amount">
+    Type total payment amount
+    - Range: $0.00 to $1,000,000.00
+    - Two decimal precision
+    - 50¢ step increment
+  </Step>
+  
+  <Step title="Set Commission">
+    Enter artist commission percentage
+    - Range: 0.00% to 100.00%
+    - Default from artist settings
+    - Override per transaction if needed
+    
+    Commission amount auto-calculates:
+    ```
+    Commission $ = Amount × Commission % ÷ 100
+    ```
+  </Step>
+  
+  <Step title="Select Payment Method">
+    Choose from dropdown:
+    - Cash ("Efectivo")
+    - Card ("Tarjeta")
+    - Transfer ("Transferencia")
+    - Mixed ("Mixto") - for split payments
+  </Step>
+  
+  <Step title="Add Note (Optional)">
+    Enter reference or details:
+    - Transaction ID from card processor
+    - Check number
+    - Payment plan installment ("2 of 3")
+    - Special terms or conditions
+  </Step>
+  
+  <Step title="Confirm">
+    Click **OK** to save transaction
+    
+    System records:
+    - Transaction with all details
+    - Links to session (if from appointment)
+    - Updates session balance
+    - Calculates commission
+  </Step>
+</Steps>
+
+### Commission Calculation
+
+Commissions are calculated two ways:
+
+**1. Standard Commission** (most common):
+```python
+commission_amount = amount × (commission_pct / 100)
+```
+
+Example: $500 service × 40% commission = $200
+
+**2. Session Override** (special cases):
+```python
+commission_amount = amount × (session.commission_override / 100)
+```
+
+Used when:
+- Artist has special rate for this client
+- Promotional pricing affects commission
+- Apprentice vs. senior artist rates differ
+- Complex multi-artist collaboration
+
+<Warning>
+Commission overrides are set on the session, not the transaction. All transactions for that session use the override percentage.
+</Warning>
+
+## Export Functionality
+
+### Export Dialog
+
+Click **Export CSV** button:
+
+**Export Scope Options:**
+1. **Current View** - Exports filtered results
+   - Respects artist filter
+   - Respects payment method filter
+   - Uses selected date range
+   
+2. **All Data** - Exports everything
+   - Ignores all filters
+   - Uses selected date range only
+   - Includes all artists and payment types
+
+3. **Cancel** - Abort export
+
+### CSV Format
+
+Exported file contains:
+
+```csv
+Date,Client,Amount,Payment,Artist
+2026-03-04,John Smith,450.00,Efectivo,Alex Rivera
+2026-03-04,Jane Doe,780.00,Tarjeta,Sam Chen
+...
+```
+
+**Field Details:**
+- **Date**: YYYY-MM-DD (ISO format for sorting)
+- **Client**: Full name or "—" for standalone
+- **Amount**: Decimal with 2 places (no $ symbol)
+- **Payment**: Exact method string
+- **Artist**: Full artist name
+
+**File Naming:**
+- `reportes_hoy_vista.csv` - Today, current view
+- `reportes_semana_todos.csv` - This week, all data
+- `reportes_20260301-20260315_vista.csv` - Custom range, current view
+
+<Tip>
+Files use UTF-8 with BOM encoding for perfect Excel compatibility. Double-click to open directly in Excel without import wizard.
+</Tip>
+
+### Export Permissions
+
+| Role | Can Export |
+|------|------------|
+| Admin | ✓ All data |
+| Assistant | ✓ With elevation approval |
+| Artist | ✓ Own data only |
+
+**Assistant Elevation Flow:**
+1. Click Export CSV
+2. System prompts for admin password
+3. Admin enters credentials
+4. Export proceeds if approved
+5. Audit log records the elevated action
+
+## Auto-Refresh
+
+The reports page automatically refreshes:
+
+**Transaction Refresh** (every 6 seconds):
+- Re-queries database for new transactions
+- Updates table and chart
+- Recalculates totals
+- Reloads active artists list
+
+**Color Refresh** (every 2.5 seconds):
+- Checks `artist_colors.json` for changes
+- Reapplies colors to chart lines
+- Maintains color consistency with calendar
+
+**Benefits:**
+- See payments from cash register in real-time
+- Multi-user studios stay synchronized
+- No manual refresh needed
+- Smooth updates without page flicker
+
+<Info>
+Refresh timers only run when the Reports tab is visible. They pause when you switch tabs to save resources.
+</Info>
+
+## Financial Dashboards
+
+### Key Performance Indicators (KPIs)
+
+Track these metrics in reports:
+
+**Revenue Metrics:**
+- **Total Revenue** - Sum of all transactions
+- **Average Transaction** - Mean payment amount
+- **Revenue Per Artist** - Individual performance
+- **Revenue Per Day** - Daily averages
+
+**Payment Mix:**
+- **Cash Percentage** - Cash vs. other methods
+- **Card Percentage** - Card payment ratio
+- **Transfer Percentage** - Bank transfer ratio
+
+**Artist Metrics:**
+- **Commission Paid** - Total artist earnings
+- **Studio Revenue** - After commission
+- **Sessions Completed** - Count per artist
+- **Average Session Value** - Revenue per session
+
+### Trend Analysis
+
+Use the line chart for insights:
+
+**Patterns to Look For:**
+- **Seasonal trends** - Busy/slow seasons
+- **Weekly patterns** - Best/worst days
+- **Growth trends** - Increasing/decreasing revenue
+- **Artist comparison** - Performance relative to peers
+
+**Chart Interactions:**
+- Click legend items to hide/show artists
+- Hover data points for exact values
+- Compare multiple artists visually
+- Export data for deeper analysis in Excel
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Daily Reconciliation">
+    **End-of-day routine:**
+    1. Export today's transactions
+    2. Count physical cash in register
+    3. Compare total cash transactions to physical count
+    4. Reconcile card payments with merchant statements  
+    5. Note any discrepancies in cash register log
+    6. Store daily report in accounting folder
+    
+    **Why reconcile daily:**
+    - Catch errors immediately
+    - Prevent small losses from accumulating
+    - Maintain accurate books
+    - Simplify month-end closing
+  </Accordion>
+  
+  <Accordion title="Commission Management">
+    **Set clear commission policies:**
+    - Document standard commission percentages
+    - Define override criteria in writing
+    - Communicate changes to artists in advance
+    - Track commission changes over time
+    
+    **Use overrides sparingly:**
+    - Only for specific, justifiable situations
+    - Document reason in session notes
+    - Inform artist of the override
+    - Review overrides monthly
+  </Accordion>
+  
+  <Accordion title="Payment Method Tracking">
+    **Why track payment methods:**
+    - Merchant fees affect card profitability
+    - Cash requires secure handling
+    - Transfers have different processing times
+    - Tax reporting varies by method
+    
+    **Mixed payment protocol:**
+    - Create separate transactions for each portion
+    - Link all to same session
+    - Note split in concept field
+    - Example: "$300 card + $200 cash"
+  </Accordion>
+  
+  <Accordion title="Financial Reporting">
+    **Monthly reports to generate:**
+    - Total studio revenue
+    - Revenue by artist
+    - Revenue by payment method
+    - Commission summary
+    - Outstanding balances
+    - Comparison to previous month
+    
+    **Annual reports:**
+    - Year-over-year growth
+    - Seasonal trends
+    - Artist performance rankings
+    - Tax preparation summaries
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+- [Appointment Scheduling](/features/appointment-scheduling) - Link payments to sessions
+- [Client Management](/features/client-management) - Track payment history per client
+- [Artist Portfolios](/features/artist-portfolios) - Connect revenue to portfolio pieces
+
+## Technical Details
+
+### Database Indexes
+
+Optimized for fast reporting:
+
+```sql
+INDEX ix_tx_date ON transactions (date)
+INDEX ix_tx_artist_date ON transactions (artist_id, date)
+```
+
+Enables efficient:
+- Date range queries
+- Artist-specific reports  
+- Time-series aggregations
+
+### Transaction Timestamps
+
+Three timestamp fields:
+
+1. **date** - When payment occurred (user-selectable, for reports)
+2. **created_at** - When record was created (audit trail)
+3. **updated_at** - Last modification (change tracking)
+
+<Note>
+The `date` field is used for all financial reporting and should represent the actual payment date, not the record creation date.
+</Note>
+
+### Soft Delete Implementation
+
+```python
+deleted_flag: Boolean = False
+
+# Query active transactions
+active = session.query(Transaction).filter(
+    Transaction.deleted_flag == False
+)
+
+# "Delete" without removing
+txn.deleted_flag = True
+```
+
+Benefits:
+- Audit compliance
+- Reversible deletions  
+- History preservation
+- Fraud detection
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Totals Don't Match">
+    **Check for:**
+    - Deleted transactions (soft-deleted with flag)
+    - Date range misalignment
+    - Artist filter excluding some data
+    - Payment method filter active
+    - Time zone issues (check transaction.date)
+    
+    **To fix:**
+    - Clear all filters and recalculate
+    - Check deleted_flag in database
+    - Verify date ranges include all payments
+    - Export to CSV and sum in Excel to verify
+  </Accordion>
+  
+  <Accordion title="Chart Not Displaying">
+    **Possible causes:**
+    - PyQt5.QtChart module not installed
+    - No data in selected period
+    - All artists have $0 revenue
+    - Artist filter excludes all data
+    
+    **Solutions:**
+    - Install QtChart: `pip install PyQt5.QtChart`
+    - Select different date range
+    - Clear artist filter
+    - Check transaction table has data
+  </Accordion>
+  
+  <Accordion title="Commission Calculation Wrong">
+    **Verify:**
+    - Commission percentage in artist settings
+    - Session commission_override value
+    - Transaction amount is correct
+    - Calculation: amount × pct ÷ 100
+    
+    **Common mistakes:**
+    - Using whole number instead of percentage (40 vs 0.40)
+    - Forgetting to divide by 100
+    - Applying commission to net instead of gross
+  </Accordion>
+</AccordionGroup>

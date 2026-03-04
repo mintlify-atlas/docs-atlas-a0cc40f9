@@ -1,0 +1,395 @@
+---
+title: Database Migrations
+description: Schema migration scripts and workflow for Tattoo Studio Manager database evolution
+---
+
+## Overview
+
+The `data/tools/` directory contains migration scripts for evolving the database schema. Tattoo Studio Manager uses manual migration scripts rather than an automated framework like Alembic, giving you full control over schema changes.
+
+## Migration Philosophy
+
+<CardGroup cols={2}>
+  <Card title="Idempotent" icon="arrows-rotate">
+    Migrations can be run multiple times safely without duplicating changes or causing errors.
+  </Card>
+  <Card title="Explicit" icon="file-code">
+    Each migration is a standalone Python script that clearly documents what it does.
+  </Card>
+  <Card title="Version-Controlled" icon="code-branch">
+    Migration files use date prefixes (e.g., `2025_10_09_`) for clear chronological ordering.
+  </Card>
+  <Card title="Raw SQL" icon="database">
+    Direct SQLite operations for maximum control and transparency.
+  </Card>
+</CardGroup>
+
+## Migration Naming Convention
+
+```
+[YYYY_MM_DD]_[descriptive_name].py
+```
+
+### Examples
+
+- `2025_10_09_add_txn_timestamps.py` - Add timestamp columns to transactions
+- `2025_10_15_extend_portfolio.py` - Extend portfolio table with new fields
+- `2025_10_17_add_client_is_active.py` - Add is_active flag to clients
+
+## Common Migration Patterns
+
+### Pattern 1: Adding Columns
+
+```python
+import sqlite3
+from pathlib import Path
+
+def column_exists(cur, table: str, col: str) -> bool:
+    cur.execute(f"PRAGMA table_info({table});")
+    return any(row[1] == col for row in cur.fetchall())
+
+def add_column_if_missing(cur, table: str, col: str, sqltype: str) -> None:
+    if column_exists(cur, table, col):
+        print(f"[=] {table}.{col} already exists")
+        return
+    print(f"[+] ALTER TABLE {table} ADD COLUMN {col} {sqltype}")
+    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {sqltype};")
+
+def main():
+    db_path = Path("./dev.db")
+    con = sqlite3.connect(str(db_path))
+    cur = con.cursor()
+    
+    # Add new columns
+    add_column_if_missing(cur, "clients", "instagram", "TEXT")
+    add_column_if_missing(cur, "clients", "city", "TEXT")
+    
+    con.commit()
+    con.close()
+
+if __name__ == "__main__":
+    main()
+```
+
+Reference: `data/tools/migrate_client_columns.py`
+
+### Pattern 2: Adding Timestamps with Triggers
+
+```python
+import sqlite3
+
+def add_text_column(cur, table: str, column: str) -> None:
+    if not column_exists(cur, table, column):
+        cur.execute(f'ALTER TABLE {table} ADD COLUMN {column} TEXT')
+        print(f"[OK] Column added: {table}.{column}")
+
+def main():
+    con = sqlite3.connect("dev.db")
+    cur = con.cursor()
+    
+    # Add timestamp columns
+    add_text_column(cur, "transactions", "created_at")
+    add_text_column(cur, "transactions", "updated_at")
+    
+    # Backfill existing rows
+    cur.execute(
+        "UPDATE transactions SET created_at = COALESCE(created_at, CURRENT_TIMESTAMP)"
+    )
+    cur.execute(
+        "UPDATE transactions SET updated_at = COALESCE(updated_at, created_at)"
+    )
+    
+    # Create trigger for automatic updates
+    cur.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_transactions_updated_at
+    AFTER UPDATE ON transactions
+    FOR EACH ROW
+    BEGIN
+        UPDATE transactions SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+    END;
+    """)
+    
+    con.commit()
+    con.close()
+```
+
+Reference: `data/tools/2025_10_09_add_txn_timestamps.py`
+
+### Pattern 3: Adding Indexes
+
+```python
+import sqlite3
+
+def has_index(cur, name):
+    cur.execute("PRAGMA index_list(portfolio_items)")
+    return any(r[1].lower() == name.lower() for r in cur.fetchall())
+
+def main():
+    con = sqlite3.connect("dev.db")
+    cur = con.cursor()
+    
+    indexes = [
+        ("ix_portfolio_artist", "artist_id"),
+        ("ix_portfolio_client", "client_id"),
+        ("ix_portfolio_created", "created_at"),
+    ]
+    
+    for idx_name, column in indexes:
+        if not has_index(cur, idx_name):
+            cur.execute(f"CREATE INDEX {idx_name} ON portfolio_items({column})")
+            print(f"[+] Index created: {idx_name}")
+    
+    con.commit()
+    con.close()
+```
+
+Reference: `data/tools/2025_10_15_extend_portfolio.py:18-28`
+
+## Available Migration Scripts
+
+### Schema Migrations
+
+| Script | Purpose | Key Changes |
+|--------|---------|-------------|
+| `migrate_client_columns.py` | Extend client table | Instagram, city, state, health fields, emergency contacts |
+| `migrate_users_add_fields.py` | Extend user profiles | Name, birthdate, email, phone, Instagram |
+| `2025_10_09_add_txn_timestamps.py` | Transaction timestamps | Add created_at, updated_at, trigger |
+| `2025_10_15_extend_portfolio.py` | Portfolio metadata | Client/session/transaction links, style, body area |
+| `2025_10_16_portfolio_artist_nullable.py` | Portfolio flexibility | Make artist_id nullable |
+| `2025_10_17_add_client_is_active.py` | Client status | Add is_active flag |
+| `2025_11_06_add_client_prefs.py` | Client preferences | Add preference fields |
+| `2025_11_06_txn_allow_cashloose.py` | Transaction flexibility | Allow loose cash handling |
+
+### Data Scripts
+
+| Script | Purpose | Details |
+|--------|---------|----------|
+| `seed.py` | Populate test data | Creates clients, artists, sessions, products, users |
+| `backfill_preferred_artist.py` | Data backfill | Populate preferred artist from session history |
+| `purge_artists.py` | Clean data | Remove artists (use with caution) |
+
+## Running Migrations
+
+### Manual Execution
+
+```bash
+# Run a specific migration
+python data/tools/migrate_client_columns.py
+
+# With custom database path
+python data/tools/2025_10_09_add_txn_timestamps.py /path/to/database.db
+
+# Using environment variable
+DB_PATH=/path/to/db.db python data/tools/migrate_users_add_fields.py
+```
+
+### From Code
+
+```python
+import subprocess
+import sys
+
+def run_migration(script_name: str, db_path: str = None):
+    """Run a migration script programmatically."""
+    cmd = [sys.executable, f"data/tools/{script_name}"]
+    if db_path:
+        cmd.append(db_path)
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"Migration failed: {result.stderr}")
+    print(result.stdout)
+
+# Example usage
+run_migration("migrate_client_columns.py")
+```
+
+## Seeding the Database
+
+The `seed.py` script provides idempotent test data population:
+
+```python
+from data.tools.seed import main as seed_main
+
+# Run the seeder
+seed_main()
+```
+
+### What It Creates
+
+<AccordionGroup>
+  <Accordion title="Clients (40)">
+    Random client data using Faker library with Mexican locale:
+    - Names, phone numbers, emails
+    - Only created if clients table is empty
+  </Accordion>
+
+  <Accordion title="Artists (4)">
+    Predefined artists with commission rates:
+    - Dylan Bourjac (55%)
+    - Jesus Esquer (50%)
+    - Pablo Velasquez (45%)
+    - Alex Chavez (50%)
+  </Accordion>
+
+  <Accordion title="Products (3)">
+    Default inventory items:
+    - Tinta Negra (Black Ink)
+    - Guantes (Gloves)
+    - Agujas 5RL (5RL Needles)
+  </Accordion>
+
+  <Accordion title="Sessions (60)">
+    Tattoo sessions over the last 30 days:
+    - Random clients and artists
+    - Status: Active, Completed, Waiting
+    - Prices: 600-2200 MXN
+  </Accordion>
+
+  <Accordion title="Transactions">
+    Payment records for completed sessions:
+    - Methods: Cash, Card, Transfer
+    - Linked to session end times
+  </Accordion>
+
+  <Accordion title="Users (3)">
+    Test accounts:
+    - `admin` / `admin123` (Admin role)
+    - `assistant` / `assistant123` (Assistant role)
+    - `jesus` / `tattoo123` (Artist role, linked to Jesus Esquer)
+  </Accordion>
+</AccordionGroup>
+
+Reference: `data/tools/seed.py:185-219`
+
+## Creating New Migrations
+
+### Step 1: Create Migration File
+
+```bash
+# Use date prefix for ordering
+touch data/tools/$(date +%Y_%m_%d)_add_client_notes.py
+```
+
+### Step 2: Write Idempotent Script
+
+```python
+#!/usr/bin/env python3
+"""
+Migration: Add notes column to clients table
+
+Usage:
+  python data/tools/2026_03_04_add_client_notes.py [DB_PATH]
+"""
+import os
+import sys
+import sqlite3
+from pathlib import Path
+
+def db_path_from_argv() -> str:
+    """Get database path from arguments or use default."""
+    if len(sys.argv) > 1:
+        return sys.argv[1]
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "dev.db")
+    )
+
+def column_exists(cur: sqlite3.Cursor, table: str, column: str) -> bool:
+    """Check if column exists in table."""
+    cur.execute(f"PRAGMA table_info({table})")
+    return any(row[1] == column for row in cur.fetchall())
+
+def main():
+    db_path = db_path_from_argv()
+    print(f"Using database: {db_path}")
+    
+    con = sqlite3.connect(db_path)
+    con.execute("PRAGMA foreign_keys = ON")
+    cur = con.cursor()
+    
+    try:
+        # Add notes column if missing
+        if not column_exists(cur, "clients", "notes"):
+            cur.execute('ALTER TABLE clients ADD COLUMN notes TEXT')
+            print("[OK] Column added: clients.notes")
+        else:
+            print("[=] Column already exists: clients.notes")
+        
+        con.commit()
+        print("[OK] Migration completed.")
+    finally:
+        con.close()
+
+if __name__ == "__main__":
+    main()
+```
+
+### Step 3: Test Migration
+
+```bash
+# Test on development database
+python data/tools/2026_03_04_add_client_notes.py
+
+# Verify idempotency (should show "already exists")
+python data/tools/2026_03_04_add_client_notes.py
+```
+
+<Warning>
+  Always test migrations on a backup copy of production data before deploying to production.
+</Warning>
+
+## Migration Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Always Check Before Modifying" icon="magnifying-glass">
+    Use `PRAGMA table_info()` to check if columns exist before adding them.
+  </Card>
+  
+  <Card title="Enable Foreign Keys" icon="link">
+    Always execute `PRAGMA foreign_keys = ON` when connecting to ensure referential integrity.
+  </Card>
+  
+  <Card title="Use Transactions" icon="database">
+    Wrap all changes in transactions so they can be rolled back on error.
+  </Card>
+  
+  <Card title="Handle Both Environments" icon="laptop-code">
+    Support both development (`./dev.db`) and production (via `DB_PATH` env var) paths.
+  </Card>
+  
+  <Card title="Add Helpful Output" icon="terminal">
+    Print what the migration is doing so users understand the progress.
+  </Card>
+  
+  <Card title="Document the Purpose" icon="book">
+    Include a docstring explaining what the migration does and why.
+  </Card>
+</CardGroup>
+
+## SQLite Limitations
+
+<Warning>
+  SQLite has limited `ALTER TABLE` support compared to other databases:
+  - Cannot drop columns (except in SQLite 3.35.0+)
+  - Cannot modify column types
+  - Cannot add columns with non-constant defaults
+  
+  For complex schema changes, you may need to:
+  1. Create a new table with the desired schema
+  2. Copy data from the old table
+  3. Drop the old table
+  4. Rename the new table
+</Warning>
+
+## Related Documentation
+
+- [Session Management](/api/database/session) - Database connection and session handling
+- [Client Model](/api/models/client) - Client data model definition
+- [User Model](/api/models/user) - User authentication model
+- [Product Model](/api/models/product) - Inventory product model
+
+## External Resources
+
+- [SQLite ALTER TABLE Documentation](https://www.sqlite.org/lang_altertable.html)
+- [SQLite PRAGMA Statements](https://www.sqlite.org/pragma.html)
+- [SQLAlchemy Core Documentation](https://docs.sqlalchemy.org/en/20/core/)

@@ -1,0 +1,363 @@
+---
+title: 'Transaction Model'
+description: 'Payment transaction data model with commission tracking and soft delete'
+---
+
+## Overview
+
+The `Transaction` model represents a payment transaction in the tattoo studio, tracking payments for sessions, commission amounts, payment methods, and maintaining full audit history with soft delete capability.
+
+## Model Definition
+
+```python
+from sqlalchemy import String, DateTime, ForeignKey, Float, Boolean, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+```
+
+## Fields
+
+### Primary Key
+
+<ResponseField name="id" type="int" required>
+  Unique identifier for the transaction (auto-increment)
+</ResponseField>
+
+### Relationships
+
+<ResponseField name="session_id" type="int">
+  Foreign key reference to the tattoo session
+  
+  **Foreign Key:** sessions.id
+  
+  **On Delete:** SET NULL (transaction remains if session is deleted)
+  
+  **Nullable:** True (allows transactions not tied to sessions)
+  
+  **Indexed:** Yes
+</ResponseField>
+
+<ResponseField name="artist_id" type="int" required>
+  Foreign key reference to the artist
+  
+  **Foreign Key:** artists.id
+  
+  **On Delete:** RESTRICT (prevents artist deletion if they have transactions)
+  
+  **Indexed:** Yes
+</ResponseField>
+
+### Payment Information
+
+<ResponseField name="amount" type="float" required>
+  Total amount collected in this transaction
+  
+  **Currency:** Assumes studio's default currency
+</ResponseField>
+
+<ResponseField name="method" type="str" required>
+  Payment method used
+  
+  **Length:** Maximum 30 characters
+  
+  **Common Values:** "Efectivo" (Cash), "Tarjeta" (Card), "Transferencia" (Transfer)
+</ResponseField>
+
+<ResponseField name="concept" type="str" default="">
+  Free-form description or notes about the transaction
+  
+  **Length:** Maximum 200 characters
+</ResponseField>
+
+### Timing
+
+<ResponseField name="date" type="datetime" default="func.now()">
+  When the payment was collected
+  
+  **Indexed:** Yes, for reporting and grouping
+  
+  **Default:** Current timestamp
+</ResponseField>
+
+### Commission
+
+<ResponseField name="commission_amount" type="float">
+  Calculated commission amount for this transaction
+  
+  **Nullable:** True
+  
+  **Calculation:** Typically `amount * commission_rate`
+  
+  **Note:** Pre-calculated and stored for historical accuracy
+</ResponseField>
+
+### Soft Delete
+
+<ResponseField name="deleted_flag" type="bool" default="false">
+  Marks transaction as deleted without removing from database
+  
+  **Usage:** Allows "undoing" accidental deletions and maintains audit history
+</ResponseField>
+
+### Audit Timestamps
+
+<ResponseField name="created_at" type="datetime" default="func.now()">
+  When the transaction record was created
+  
+  **Auto-generated:** Yes
+</ResponseField>
+
+<ResponseField name="updated_at" type="datetime" default="func.now()">
+  When the transaction record was last modified
+  
+  **Auto-updated:** Yes (on update)
+</ResponseField>
+
+## Relationship Objects
+
+<ResponseField name="session" type="TattooSession">
+  The TattooSession object this transaction belongs to
+  
+  **Relationship:** Many-to-One
+  
+  **Lazy Loading:** joined (eager loading)
+  
+  **Back Populates:** `transactions` on TattooSession model
+</ResponseField>
+
+<ResponseField name="artist" type="Artist">
+  The Artist object who performed the work
+  
+  **Relationship:** Many-to-One
+  
+  **Lazy Loading:** joined (eager loading)
+</ResponseField>
+
+## Database Schema
+
+```sql
+CREATE TABLE transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER,
+    artist_id INTEGER NOT NULL,
+    amount FLOAT NOT NULL,
+    method VARCHAR(30) NOT NULL,
+    concept VARCHAR(200) NOT NULL DEFAULT '',
+    date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    commission_amount FLOAT,
+    deleted_flag BOOLEAN NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE SET NULL,
+    FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX ix_transactions_session_id ON transactions(session_id);
+CREATE INDEX ix_transactions_artist_id ON transactions(artist_id);
+CREATE INDEX ix_tx_date ON transactions(date);
+CREATE INDEX ix_tx_artist_date ON transactions(artist_id, date);
+```
+
+## Usage Examples
+
+### Create a New Transaction
+
+```python
+from data.models.transaction import Transaction
+from datetime import datetime
+
+# Create transaction for a session
+transaction = Transaction(
+    session_id=1,
+    artist_id=2,
+    amount=250.0,
+    method="Efectivo",
+    concept="Deposit for sleeve session",
+    commission_amount=125.0  # 50% commission
+)
+db.add(transaction)
+db.commit()
+```
+
+### Calculate and Store Commission
+
+```python
+# Get session and calculate commission
+session = db.query(TattooSession).filter(TattooSession.id == 1).first()
+commission_rate = session.commission_override or session.artist.rate_commission
+
+# Create transaction with calculated commission
+payment_amount = 500.0
+transaction = Transaction(
+    session_id=session.id,
+    artist_id=session.artist_id,
+    amount=payment_amount,
+    method="Tarjeta",
+    concept="Full payment",
+    commission_amount=payment_amount * commission_rate
+)
+db.add(transaction)
+db.commit()
+```
+
+### Query Transactions for Reporting
+
+```python
+from datetime import datetime, timedelta
+
+# Get all transactions for current month (excluding deleted)
+start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0)
+
+transactions = db.query(Transaction).filter(
+    Transaction.date >= start_of_month,
+    Transaction.deleted_flag == False
+).order_by(Transaction.date).all()
+
+total_revenue = sum(t.amount for t in transactions)
+total_commissions = sum(t.commission_amount or 0 for t in transactions)
+
+print(f"Monthly Revenue: ${total_revenue:.2f}")
+print(f"Total Commissions: ${total_commissions:.2f}")
+print(f"Studio Net: ${total_revenue - total_commissions:.2f}")
+```
+
+### Get Artist's Earnings
+
+```python
+# Calculate artist earnings for a period
+from sqlalchemy import func
+
+artist_id = 1
+start_date = datetime(2024, 3, 1)
+end_date = datetime(2024, 3, 31)
+
+earnings = db.query(
+    func.sum(Transaction.commission_amount)
+).filter(
+    Transaction.artist_id == artist_id,
+    Transaction.date >= start_date,
+    Transaction.date < end_date,
+    Transaction.deleted_flag == False
+).scalar() or 0.0
+
+print(f"Artist earnings for March: ${earnings:.2f}")
+```
+
+### Soft Delete a Transaction
+
+```python
+# Mark transaction as deleted
+transaction = db.query(Transaction).filter(Transaction.id == 1).first()
+transaction.deleted_flag = True
+db.commit()
+
+# Note: updated_at will automatically be updated
+```
+
+### Restore a Deleted Transaction
+
+```python
+# Undelete a transaction
+transaction = db.query(Transaction).filter(Transaction.id == 1).first()
+transaction.deleted_flag = False
+db.commit()
+```
+
+### Get Session Payment History
+
+```python
+# Get all payments for a session
+session = db.query(TattooSession).filter(TattooSession.id == 1).first()
+
+print(f"Payment history for {session.client.name}:")
+for txn in session.transactions:
+    if not txn.deleted_flag:
+        print(f"  {txn.date.strftime('%Y-%m-%d')}: ${txn.amount:.2f} via {txn.method}")
+        if txn.concept:
+            print(f"    Note: {txn.concept}")
+
+print(f"\nTotal Paid: ${session.total_paid:.2f}")
+print(f"Balance: ${session.balance:.2f}")
+```
+
+### Payment Methods Report
+
+```python
+from sqlalchemy import func
+
+# Group transactions by payment method
+method_totals = db.query(
+    Transaction.method,
+    func.sum(Transaction.amount).label('total'),
+    func.count(Transaction.id).label('count')
+).filter(
+    Transaction.deleted_flag == False
+).group_by(Transaction.method).all()
+
+print("Payment Methods Summary:")
+for method, total, count in method_totals:
+    print(f"{method}: {count} transactions, ${total:.2f}")
+```
+
+## Database Indexes
+
+The model includes several indexes for performance:
+
+1. **ix_transactions_session_id** - Fast lookups by session
+2. **ix_transactions_artist_id** - Fast lookups by artist
+3. **ix_tx_date** - Date-based reporting queries
+4. **ix_tx_artist_date** - Composite index for artist earnings reports
+
+## Soft Delete Pattern
+
+The `deleted_flag` field implements soft delete:
+
+**Benefits:**
+- Maintains complete audit history
+- Allows "undo" functionality
+- Preserves financial records for accounting
+- No data loss from accidental deletion
+
+**Usage:**
+- Always filter by `deleted_flag == False` in queries
+- Set `deleted_flag = True` instead of deleting records
+- Include deleted records only in admin/audit views
+
+## Commission Calculation
+
+The `commission_amount` field stores the calculated commission at transaction time:
+
+```python
+# Commission is stored, not recalculated
+commission_rate = session.commission_override or session.artist.rate_commission
+commission_amount = payment_amount * commission_rate
+```
+
+**Why store instead of calculate?**
+- Commission rates may change over time
+- Provides accurate historical data
+- Faster reporting queries (no joins required)
+- Maintains contractual accuracy
+
+## Audit Trail
+
+The model includes full audit capabilities:
+
+- **created_at** - When transaction was recorded
+- **updated_at** - When transaction was last modified
+- **deleted_flag** - Soft delete tracking
+- **session_id** - Links to session (SET NULL on delete)
+- **date** - When payment actually occurred
+
+## Notes
+
+- Transactions use SET NULL on session deletion (preserves financial records)
+- Artists cannot be deleted if they have transactions (ON DELETE RESTRICT)
+- Always exclude `deleted_flag == True` in revenue calculations
+- The `date` field is for the actual payment date, not creation date
+- Use `created_at` for audit purposes
+- Commission amounts should be calculated and stored at creation time
+- Location in codebase: `data/models/transaction.py:19`

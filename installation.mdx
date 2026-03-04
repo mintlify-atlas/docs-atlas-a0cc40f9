@@ -1,0 +1,301 @@
+---
+title: Installation
+description: Install Tattoo Studio Manager on your system with Python 3.11+
+---
+
+## System Requirements
+
+Before installing Tattoo Studio Manager, ensure your system meets the following requirements:
+
+<CardGroup cols={2}>
+  <Card title="Python" icon="python">
+    Python 3.11 or higher
+  </Card>
+  <Card title="Operating System" icon="desktop">
+    Windows, macOS, or Linux
+  </Card>
+  <Card title="RAM" icon="memory">
+    Minimum 4GB RAM
+  </Card>
+  <Card title="Storage" icon="hard-drive">
+    At least 500MB free space
+  </Card>
+</CardGroup>
+
+## Dependencies
+
+Tattoo Studio Manager relies on the following key dependencies:
+
+### Core Runtime Dependencies
+
+```txt requirements.txt
+PyQt5>=5.15,<6              # Desktop GUI framework
+PyQtChart>=5.15.4           # Charts and visualization
+SQLAlchemy>=2.0,<3          # Database ORM
+alembic>=1.13,<2            # Database migrations
+python-dotenv>=1.0,<2       # Environment configuration
+Faker>=25,<26               # Test data generation
+bcrypt>=4.1.3               # Password hashing
+```
+
+### Development Dependencies
+
+```txt
+pytest>=8,<9                # Testing framework
+pytest-cov>=5,<6            # Code coverage
+black>=24,<25               # Code formatting
+isort>=5.13,<6              # Import sorting
+flake8>=7,<8                # Code linting
+```
+
+<Note>
+The application uses SQLite as its database, which requires no additional installation.
+</Note>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone or Download the Source Code">
+    Download the Tattoo Studio Manager source code to your local machine:
+
+    ```bash
+    cd /path/to/TattoStudio
+    ```
+  </Step>
+
+  <Step title="Create a Virtual Environment">
+    Create and activate a Python virtual environment:
+
+    <CodeGroup>
+    ```bash Windows
+    python -m venv .venv
+    .venv\Scripts\activate.bat
+    ```
+
+    ```bash macOS/Linux
+    python3 -m venv .venv
+    source .venv/bin/activate
+    ```
+    </CodeGroup>
+
+    <Note>
+    Using a virtual environment is **highly recommended** to isolate dependencies and avoid conflicts with other Python projects.
+    </Note>
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all required packages using pip:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    This will install all runtime and development dependencies listed in `requirements.txt`.
+  </Step>
+
+  <Step title="Initialize the Database">
+    The application automatically creates the database on first run. The database file location depends on your environment:
+
+    - **Development**: `dev.db` in the project root directory
+    - **Production (PyInstaller)**: `%APPDATA%\InkLinkOS\inklink.db` (Windows)
+
+    <Accordion title="Optional: Seed Sample Data">
+    To populate the database with sample data for testing:
+
+    ```bash
+    python -m data.tools.seed
+    ```
+
+    This creates:
+    - 40 sample clients
+    - 4 sample artists (Dylan Bourjac, Jesus Esquer, Pablo Velasquez, Alex Chavez)
+    - 3 sample products (Tinta Negra, Guantes, Agujas 5RL)
+    - 60 sample tattoo sessions
+    - Test users:
+      - **admin** / admin123 (Administrator)
+      - **assistant** / assistant123 (Assistant)
+      - **jesus** / tattoo123 (Artist)
+    </Accordion>
+  </Step>
+
+  <Step title="Launch the Application">
+    Start the application:
+
+    <CodeGroup>
+    ```bash Windows
+    start.bat
+    ```
+
+    ```bash macOS/Linux
+    python main.py
+    ```
+    </CodeGroup>
+
+    The application will launch and display the login screen.
+  </Step>
+</Steps>
+
+## Database Configuration
+
+### Default Database Location
+
+The application automatically determines the database location:
+
+```python data/db/session.py
+def _compute_db_path() -> str:
+    # 1) Override with environment variable
+    env = os.getenv("DB_PATH")
+    if env:
+        return str(Path(env).expanduser().resolve())
+
+    # 2) Production: %APPDATA%\InkLinkOS\inklink.db
+    if getattr(sys, "frozen", False):
+        appdata = os.getenv("APPDATA")
+        base_dir = Path(appdata) / "InkLinkOS"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        return str(base_dir / "inklink.db")
+
+    # 3) Development: dev.db in project root
+    project_root = Path(__file__).resolve().parents[2]
+    return str(project_root / "dev.db")
+```
+
+### Custom Database Path
+
+To use a custom database location, set the `DB_PATH` environment variable:
+
+```bash
+export DB_PATH=/path/to/custom/database.db  # macOS/Linux
+set DB_PATH=C:\path\to\custom\database.db   # Windows
+```
+
+## First-Time Configuration
+
+When you launch the application for the first time without any users, the **First Run Wizard** automatically appears:
+
+<Steps>
+  <Step title="Studio Setup">
+    Configure your studio information:
+    - Studio name
+    - Studio logo (optional)
+    - Phone number
+    - City/Location
+  </Step>
+
+  <Step title="Admin Account Creation">
+    Create your administrator account:
+    - Username
+    - Password (securely hashed with bcrypt)
+    - Full name
+    - Email and contact information
+  </Step>
+
+  <Step title="Complete Setup">
+    The wizard will:
+    - Save your studio configuration to `settings.json`
+    - Create the admin user in the database
+    - Initialize the application with your settings
+  </Step>
+</Steps>
+
+<Warning>
+The first admin account has **full system access**. Choose a strong password and keep credentials secure.
+</Warning>
+
+## Folder Structure
+
+After installation, the application creates the following structure:
+
+```
+TattoStudio/
+├── main.py                 # Application entry point
+├── requirements.txt        # Python dependencies
+├── dev.db                  # SQLite database (development)
+├── settings.json           # Application settings
+├── data/                   # Data layer
+│   ├── db/                # Database configuration
+│   ├── models/            # SQLAlchemy models
+│   └── tools/             # Database utilities & migrations
+├── ui/                     # User interface
+│   ├── pages/             # Application pages
+│   ├── widgets/           # Reusable UI components
+│   └── styles/            # Theme and styling
+├── services/              # Business logic
+├── assets/                # Images and icons
+├── backups/               # Automatic database backups
+└── uploads/               # User-uploaded files
+    └── studio/            # Studio logo and assets
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="PyQt5 Installation Fails">
+    If PyQt5 fails to install, try:
+
+    ```bash
+    pip install --upgrade pip
+    pip install PyQt5 --no-cache-dir
+    ```
+
+    On Linux, you may need to install system dependencies:
+
+    ```bash
+    sudo apt-get install python3-pyqt5
+    ```
+  </Accordion>
+
+  <Accordion title="Database Permission Errors">
+    Ensure the application has write permissions to:
+    - Project root directory (for `dev.db`)
+    - `%APPDATA%\InkLinkOS` (Windows production)
+    - Backup directory
+
+    On Unix systems:
+
+    ```bash
+    chmod 755 /path/to/TattoStudio
+    ```
+  </Accordion>
+
+  <Accordion title="Module Import Errors">
+    If you encounter import errors:
+
+    1. Verify virtual environment is activated
+    2. Reinstall dependencies:
+
+    ```bash
+    pip install -r requirements.txt --force-reinstall
+    ```
+  </Accordion>
+
+  <Accordion title="Application Won't Start">
+    Check for errors by running:
+
+    ```bash
+    python main.py
+    ```
+
+    Common issues:
+    - Missing dependencies: reinstall from `requirements.txt`
+    - Database corruption: restore from backup or delete `dev.db` to recreate
+    - Python version: ensure Python 3.11 or higher
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start Guide" icon="rocket" href="/quick-start">
+    Learn how to use the application for the first time
+  </Card>
+  <Card title="First-Time Setup" icon="gear" href="/guides/first-time-setup">
+    Complete the initial configuration wizard
+  </Card>
+  <Card title="Database Backups" icon="database" href="/guides/backup-restore">
+    Configure automatic backups for data protection
+  </Card>
+  <Card title="User Roles" icon="users" href="/roles/overview">
+    Learn about admin, assistant, and artist roles
+  </Card>
+</CardGroup>

@@ -1,0 +1,570 @@
+---
+title: Inventory Management
+description: Track supplies, materials, and consumables with stock levels, expiration dates, and automated low-stock alerts
+---
+
+## Overview
+
+The Inventory Management system helps you track all studio supplies, from tattoo inks and needles to cleaning products and aftercare items. Monitor stock levels, track expiration dates, and receive alerts when supplies run low to ensure your studio never runs out of critical materials.
+
+## Dashboard
+
+### Key Performance Indicators
+
+The dashboard displays four critical metrics:
+
+**Active Items**
+- Total count of active (non-archived) inventory items
+- Quick health check of your supply catalog
+
+**Low Stock**  
+- Count of items below minimum stock level
+- Red flag indicator for reorder needs
+- Only counts active items
+
+**Expiring Soon**
+- Items with expiration dates ≤30 days away
+- Only includes items marked as perishable (`caduca: true`)
+- Critical for safety compliance
+
+**Monthly Consumption** (Placeholder)
+- Value of supplies consumed this month
+- Future enhancement for cost tracking
+- Currently shows $0
+
+### Quick Actions
+
+Three prominent buttons:
+- **New Item** - Add a new inventory item
+- **View Items** - Open the full item list
+- **Movements** - View stock movement history
+
+### Alert Lists
+
+**Low Stock List**
+- Shows items where `stock < min_stock`
+- Format: "Item Name (stock: current/minimum)"
+- Sorted by stock level (lowest first)
+- Click to view item details
+
+**Expiring Soon List**
+- Items expiring within 30 days
+- Format: "Item Name — DD/MM/YYYY"
+- Sorted by expiration date (soonest first)
+- Only shows perishable items with dates
+
+<Warning>
+Expired items should be removed immediately for safety. Check this list daily in tattoo studios to ensure client safety.
+</Warning>
+
+## Inventory Items
+
+### Product Data Model
+
+```python
+id: Integer (primary key)
+sku: String(50) - Stock Keeping Unit / product code
+name: String(120) - Product name (indexed)
+category: String(60) - Default: "consumibles"
+unidad: String(50) - Unit of measure (pieces, bottles, etc.)
+cost: Float - Unit cost (default: 0.0)
+stock: Integer - Current quantity (default: 0)
+min_stock: Integer - Reorder threshold (default: 0)
+caduca: Boolean - Has expiration date (default: False)
+fechacaducidad: String - Expiration date (YYYY-MM-DD format)
+proveedor: String(50) - Supplier/vendor name
+activo: Boolean - Active status (default: True)
+```
+
+### Categories
+
+Pre-defined categories for organization:
+- **Tintas** - Tattoo inks and pigments
+- **Agujas** - Needles and needle cartridges
+- **EPP** - Personal protective equipment (gloves, masks, etc.)
+- **Limpieza** - Cleaning and sterilization products
+- **Aftercare** - Client aftercare products
+- **Consumibles** - General consumables and supplies
+
+<Tip>
+Categories help with:
+- Quick filtering and searching
+- Organized reorder lists
+- Budget allocation tracking
+- Vendor negotiation (bulk orders per category)
+</Tip>
+
+## Item List View
+
+### Search and Filters
+
+**Search Bar**
+- Searches across: name, SKU, and supplier ("marca")
+- Real-time filtering as you type
+- Case-insensitive
+- Combines with other filters
+
+**Category Filter**
+- Dropdown with all categories plus "All"
+- Filter to specific supply types
+- Useful for focused reordering
+
+**Status Filter**
+- **Active** - Currently in use
+- **Archived** - Discontinued or obsolete
+- **All** - Show everything
+
+**Expiration Filter**  
+- **All** - Show all items
+- **With Expiration** - Only perishables (`caduca: true`)
+- **Without Expiration** - Only non-perishables (`caduca: false`)
+
+### Table View
+
+Comprehensive item listing:
+
+| Column | Description | Width |
+|--------|-------------|-------|
+| **SKU** | Product code | 120px |
+| **Name** | Item name | 280px |
+| **Category** | Supply category | 140px |
+| **Unit** | Unit of measure | 140px |
+| **Stock** | Current quantity | 80px |
+| **Minimum** | Reorder level | 80px |
+| **Expires** | Has expiration (Yes/No) | 90px |
+| **Supplier** | Vendor name | 140px |
+| **Actions** | Quick action buttons | 220px |
+
+**Visual Indicators:**
+- **Low stock rows** - Stock value in red (#b91c1c) when below minimum
+- **Alternating row colors** - Improved readability
+- **Right-aligned numbers** - Stock and minimum columns
+
+### Action Buttons
+
+Each row has three quick action buttons:
+
+**View**
+- Opens detailed item view
+- Shows full specifications
+- Edit mode available
+
+**Entrada** (Incoming Stock)
+- Record new stock arrival
+- Increase stock quantity
+- Update expiration dates
+
+**Ajuste** (Adjustment)
+- Correct stock discrepancies  
+- Adjust for damaged/lost items
+- Reconcile inventory counts
+
+### Pagination
+
+List pagination controls:
+- **Page size**: 20 items per page
+- **⟵ Previous** - Go to previous page
+- **⟶ Next** - Go to next page  
+- **Page X/Y** - Current position indicator
+
+Pagination respects active filters.
+
+## Stock Management Workflows
+
+### Adding a New Item
+
+<Steps>
+  <Step title="Click New Item">
+    Click **New Item** button in toolbar or dashboard
+  </Step>
+  
+  <Step title="Enter Basic Information">
+    Fill required fields:
+    - **SKU** - Unique product code
+    - **Name** - Descriptive item name
+    - **Category** - Select from dropdown
+    - **Unit** - "pieces", "bottles", "boxes", etc.
+  </Step>
+  
+  <Step title="Set Stock Levels">
+    Define inventory thresholds:
+    - **Current Stock** - Initial quantity
+    - **Minimum Stock** - Reorder point
+    
+    Example: Min stock = 10 triggers alert when you have 9 or fewer
+  </Step>
+  
+  <Step title="Configure Expiration">
+    If item expires:
+    - Check **Expires** (caduca)
+    - Enter expiration date
+    
+    If item doesn't expire:
+    - Leave unchecked
+  </Step>
+  
+  <Step title="Add Supplier Info">
+    Enter:
+    - **Supplier Name** - Vendor for reordering
+    - **Cost** - Unit cost for budgeting
+  </Step>
+  
+  <Step title="Save">
+    Click **Save** to add item to inventory
+  </Step>
+</Steps>
+
+### Recording Stock Receipt (Entrada)
+
+<Steps>
+  <Step title="Select Item">
+    Find the item in the list and click **Entrada**
+  </Step>
+  
+  <Step title="Enter Quantity Received">
+    Type the number of units received
+    
+    Example: Received 50 new needles
+  </Step>
+  
+  <Step title="Update Expiration (if applicable)">
+    For perishables, enter new expiration date
+    
+    Use the date from the product packaging
+  </Step>
+  
+  <Step title="Add Notes">
+    Optional reference:
+    - Purchase order number
+    - Invoice number  
+    - Batch/lot number
+  </Step>
+  
+  <Step title="Confirm">
+    Click **OK** to:
+    - Increase stock by entered quantity
+    - Update expiration date
+    - Create movement record
+  </Step>
+</Steps>
+
+### Stock Adjustment (Ajuste)
+
+Use adjustments for:
+- **Physical count reconciliation** - Actual vs. system discrepancy
+- **Damage/loss** - Broken or expired items
+- **Theft** - Missing inventory
+- **Transfer** - Moved to another location
+
+<Steps>
+  <Step title="Open Adjustment Dialog">
+    Click **Ajuste** on the item row
+  </Step>
+  
+  <Step title="Enter New Quantity">
+    Type the corrected stock level
+    
+    System calculates the difference automatically
+  </Step>
+  
+  <Step title="Document Reason">
+    Always explain adjustments:
+    - "Physical count: found 45, expected 50"
+    - "5 units damaged during unpacking"
+    - "Expired 3 bottles, disposed"
+  </Step>
+  
+  <Step title="Save Adjustment">
+    Click **OK** to:
+    - Update stock to new level
+    - Record adjustment in movement history
+    - Log reason for audit trail
+  </Step>
+</Steps>
+
+<Note>
+All stock adjustments are logged with timestamp, user, and reason for complete audit trail and accountability.
+</Note>
+
+## Low Stock Alerts
+
+### How Alerts Work
+
+Alerts trigger when:
+```
+current stock < minimum stock
+```
+
+Example:
+- Minimum stock: 10
+- Current stock: 8
+- **Alert triggered** ✓
+
+### Setting Effective Minimums
+
+Consider:
+
+**Lead Time**
+- How long from order to delivery?
+- Set minimum = (daily usage × lead time days) + safety buffer
+
+Example:
+- Use 5 gloves/day
+- Supplier ships in 7 days
+- Minimum = (5 × 7) + 10 safety = 45 gloves
+
+**Usage Rate**
+- High-frequency items need higher minimums
+- Seasonal variations affect requirements
+- Track actual usage to refine over time
+
+**Criticality**
+- Can you operate without this item?
+- Is it easily sourced locally?
+- Set higher minimums for critical, long-lead items
+
+<Tip>
+Review and adjust minimum stock levels monthly based on actual usage patterns. Your needs will change as your studio grows.
+</Tip>
+
+## Expiration Date Management
+
+### Date Format
+
+Store dates as strings in ISO format:
+```
+YYYY-MM-DD
+```
+
+Example: March 15, 2026 = "2026-03-15"
+
+### Expiration Alerts
+
+System alerts when:
+```
+today + 30 days >= expiration_date
+```
+
+This gives you 30 days' notice to:
+- Use the item before expiration
+- Order replacement stock
+- Dispose safely if cannot use
+
+### First-In-First-Out (FIFO)
+
+Best practice for expiring items:
+1. Always use oldest stock first
+2. Physically arrange supplies with oldest in front
+3. Label shelves with expiration dates
+4. Check expiration before use, even if in "front"
+5. Rotate stock when receiving new shipments
+
+<Warning>
+**Never use expired supplies on clients.** This can cause:
+- Infections or adverse reactions
+- Legal liability
+- License violations
+- Damage to studio reputation
+
+When in doubt, throw it out.
+</Warning>
+
+## Archiving vs. Deleting
+
+### When to Archive
+
+**Archive** items that are:
+- No longer ordered but have history
+- Seasonal items currently out of season
+- Discontinued by manufacturer
+- Replaced by better alternatives
+
+Benefits:
+- Preserves historical data
+- Maintains cost records
+- Reversible decision
+
+### When to Delete
+
+**Delete** items that:
+- Were created in error
+- Have no associated movements or history
+- Are complete duplicates
+
+Caution:
+- Deletion is permanent
+- Breaks historical references
+- Use sparingly
+
+<Info>
+Default to archiving. Only delete when absolutely necessary. You can always archive instead of delete to preserve records.
+</Info>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Regular Physical Counts">
+    **Weekly cycle counting:**
+    - Count 20% of inventory each week
+    - Complete full inventory every 5 weeks
+    - Focus on high-value or critical items
+    - Record variances and investigate causes
+    
+    **Annual full count:**
+    - Count everything in one session
+    - Close studio or count after hours
+    - Use two-person teams for accuracy
+    - Document all adjustments
+  </Accordion>
+  
+  <Accordion title="SKU Naming Convention">
+    **Create consistent SKU format:**
+    
+    Example: `CATG-BRAND-SIZE-COLOR`
+    - `INK-EI-4OZ-BLK` - Eternal Ink 4oz Black
+    - `NDL-KWAD-07RL` - Kwadron 07 Round Liner
+    - `GLV-NITL-L-BLK` - Nitrile Gloves Large Black
+    
+    Benefits:
+    - Easy searching and sorting
+    - Quick identification
+    - Consistent across team
+  </Accordion>
+  
+  <Accordion title="Supplier Management">
+    **Track supplier performance:**
+    - Lead times (order to delivery)
+    - Quality consistency
+    - Pricing trends
+    - Minimum order quantities
+    - Shipping costs
+    
+    **Maintain backup suppliers:**
+    - Have 2-3 sources for critical items
+    - Test alternates periodically
+    - Negotiate better rates with volume
+  </Accordion>
+  
+  <Accordion title="Cost Tracking">
+    **Update costs regularly:**
+    - Enter actual cost paid, not MSRP
+    - Include shipping in unit cost
+    - Track price trends over time
+    - Use for profitability analysis
+    
+    **Calculate true costs:**
+    ```
+    Unit Cost = (Product Cost + Shipping) ÷ Quantity
+    ```
+    
+    Example:
+    - 100 needles at $150 + $20 shipping
+    - Unit cost = $170 ÷ 100 = $1.70 each
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+- [Financial Tracking](/features/financial-tracking) - Link supply costs to studio expenses
+- [Appointment Scheduling](/features/appointment-scheduling) - Track supply usage per session
+
+## Technical Details
+
+### Database Schema
+
+```sql
+CREATE TABLE products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sku TEXT NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT DEFAULT 'consumibles',
+  unidad TEXT NOT NULL,
+  cost REAL DEFAULT 0.0,
+  stock INTEGER DEFAULT 0,
+  min_stock INTEGER DEFAULT 0,
+  caduca BOOLEAN DEFAULT FALSE,
+  fechacaducidad TEXT,
+  proveedor TEXT,
+  activo BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX idx_products_name ON products(name);
+```
+
+### Date Validation
+
+Expiration date checking:
+
+```python
+from datetime import datetime, date, timedelta
+
+def is_expiring_soon(fecha_str: str, days: int = 30) -> bool:
+    """Check if item expires within specified days."""
+    try:
+        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+        limite = date.today() + timedelta(days=days)
+        return fecha <= limite
+    except:
+        return False
+```
+
+### Stock Movement Future Enhancement
+
+Planned movement tracking schema:
+
+```python
+Movement(
+    id: Integer,
+    product_id: Integer,
+    type: Enum("entrada", "salida", "ajuste"),
+    quantity: Integer,
+    reference: String,
+    notes: Text,
+    user_id: Integer,
+    created_at: DateTime
+)
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Low Stock Alert Not Showing">
+    **Verify:**
+    - Item is active (`activo: true`)
+    - Current stock is actually below minimum
+    - Minimum stock is set (not 0)
+    - Dashboard has refreshed
+    
+    **To fix:**
+    - Check item details
+    - Ensure min_stock > 0
+    - Click dashboard refresh
+  </Accordion>
+  
+  <Accordion title="Expiration Date Not Parsing">
+    **Common issues:**
+    - Wrong date format (use YYYY-MM-DD)
+    - Invalid date (Feb 30, etc.)
+    - Text in date field ("expires soon")
+    
+    **Solution:**
+    - Always use ISO format: YYYY-MM-DD
+    - Validate dates before saving
+    - Use date picker if available
+  </Accordion>
+  
+  <Accordion title="Stock Count Discrepancies">
+    **Investigation steps:**
+    1. When was last physical count?
+    2. Have there been unrecorded uses?
+    3. Check for theft or loss
+    4. Review recent movement history
+    5. Verify unit of measure consistency
+    
+    **Resolution:**
+    - Perform immediate physical count
+    - Use Adjustment to correct
+    - Document reason thoroughly
+    - Implement better tracking process
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,410 @@
+---
+title: Admin Role
+description: Complete reference for administrator capabilities and responsibilities
+---
+
+The **Admin** role has unrestricted access to all system features and is responsible for studio management, security settings, and user administration.
+
+## Overview
+
+Admins have `allow` permissions for nearly all resources and actions in the system. This role is designed for:
+
+- Studio owners or managers
+- Users who need full control over business operations
+- Personnel responsible for security and compliance
+
+<Warning>
+  Admin accounts should be limited to trusted personnel only. There is no additional approval layer for admin actions.
+</Warning>
+
+## Full Capabilities
+
+Admins can perform all actions across all six resource categories without restrictions:
+
+### Agenda Management
+
+Complete control over the studio schedule:
+
+```python
+("agenda", "view"):     {"admin": "allow"}  # View all appointments
+("agenda", "create"):   {"admin": "allow"}  # Book for any artist
+("agenda", "edit"):     {"admin": "allow"}  # Modify any appointment
+("agenda", "cancel"):   {"admin": "allow"}  # Cancel appointments
+("agenda", "complete"): {"admin": "allow"}  # Mark as completed
+("agenda", "no_show"):  {"admin": "allow"}  # Mark no-shows
+("agenda", "block"):    {"admin": "allow"}  # Create schedule blocks
+("agenda", "export"):   {"admin": "allow"}  # Export schedule data
+```
+
+Defined in `services/permissions.py:40-47`.
+
+**Use cases:**
+- Book appointments for any artist
+- Resolve scheduling conflicts
+- Block time off for multiple artists
+- Generate schedule reports for accounting
+
+### Client Database
+
+Unrestricted access to all client information:
+
+```python
+("clients", "view"):    {"admin": "allow"}  # View all clients
+("clients", "create"):  {"admin": "allow"}  # Add new clients
+("clients", "edit"):    {"admin": "allow"}  # Modify client info
+("clients", "delete"):  {"admin": "allow"}  # Remove clients
+("clients", "consent"): {"admin": "allow"}  # Manage consent forms
+("clients", "notes"):   {"admin": "allow"}  # View/edit all notes
+("clients", "export"):  {"admin": "allow"}  # Export client data
+```
+
+Defined in `services/permissions.py:50-56`.
+
+**Use cases:**
+- Correct client information errors
+- Merge duplicate client records
+- Remove test or spam entries
+- Export client lists for marketing
+- Access all historical notes across artists
+
+<Info>
+  Client deletion should be rare. Consider marking inactive instead for audit trail purposes.
+</Info>
+
+### Staff Management
+
+Exclusive control over user accounts and artist profiles:
+
+```python
+("staff", "view"):          {"admin": "allow"}  # View all staff
+("staff", "manage_users"):  {"admin": "allow"}  # CRUD users
+("staff", "toggle_active"): {"admin": "allow"}  # Enable/disable accounts
+("portfolio", "view"):      {"admin": "allow"}  # View all portfolios
+("portfolio", "edit"):      {"admin": "allow"}  # Edit any portfolio
+("portfolio", "upload"):    {"admin": "allow"}  # Upload to any portfolio
+```
+
+Defined in `services/permissions.py:59-64`.
+
+**Use cases:**
+- Create new user accounts (admin, assistant, artist)
+- Assign and change user roles
+- Deactivate accounts for departed staff
+- Manage artist profiles and portfolios
+- Update artist availability and specialties
+
+**Important:** Only admins can create other admin accounts or modify user roles.
+
+### Financial Reports
+
+Complete access to all financial data and operations:
+
+```python
+("reports", "view"):        {"admin": "allow"}  # View all reports
+("reports", "export"):      {"admin": "allow"}  # Export financial data
+("reports", "view_tx"):     {"admin": "allow"}  # View all transactions
+("reports", "refund_void"): {"admin": "allow"}  # Process refunds/voids
+("reports", "cash_close"):  {"admin": "allow"}  # Close cash drawer
+```
+
+Defined in `services/permissions.py:67-71`.
+
+**Use cases:**
+- Review studio-wide revenue reports
+- Process refunds and voids without approval
+- Close cash drawer at end of day
+- Export financial data for accounting software
+- Audit artist commissions and payouts
+
+### Inventory Management
+
+Full control over stock and supplies:
+
+```python
+("inventory", "view"):        {"admin": "allow"}  # View inventory
+("inventory", "create_item"): {"admin": "allow"}  # Add new items
+("inventory", "edit_item"):   {"admin": "allow"}  # Modify items
+("inventory", "stock_in"):    {"admin": "allow"}  # Receive stock
+("inventory", "stock_adj"):   {"admin": "allow"}  # Adjust quantities
+("inventory", "cycle_count"): {"admin": "allow"}  # Physical counts
+("inventory", "export"):      {"admin": "allow"}  # Export inventory data
+```
+
+Defined in `services/permissions.py:74-80`.
+
+**Use cases:**
+- Add new product lines
+- Process supply deliveries
+- Correct stock discrepancies
+- Conduct physical inventory counts
+- Generate supply order reports
+
+### Security and System Settings
+
+**Exclusive** access to security features - no other role can access these:
+
+```python
+("security", "settings"):    {"admin": "allow"}  # System configuration
+("security", "audit"):       {"admin": "allow"}  # View audit logs
+("security", "backup"):      {"admin": "allow"}  # Database backups
+("security", "rotate_code"): {"admin": "allow"}  # Change master code
+```
+
+Defined in `services/permissions.py:83-86`.
+
+**Use cases:**
+- Configure studio business rules (hours, policies)
+- Review audit logs for security investigations
+- Initiate and restore database backups
+- Rotate the master code periodically or after staff changes
+- Manage system integrations and API keys
+
+<Warning>
+  **Master Code Management:** When rotating the master code, ensure assistants are immediately notified of the new code. See `services/permissions.py:149-159` for master code verification.
+</Warning>
+
+## User Management
+
+Admins are solely responsible for creating and managing user accounts.
+
+### Creating Users
+
+When creating a new user, admins must specify:
+
+```python
+class User(Base):
+    username = Column(String(64), unique=True, nullable=False)  # Login name
+    password_hash = Column(String(255), nullable=False)         # Hashed password
+    role = Column(String(16), nullable=False)                   # admin|assistant|artist
+    artist_id = Column(Integer, ForeignKey("artists.id"))      # Required if role=artist
+    is_active = Column(Boolean, default=True)                   # Enable/disable account
+```
+
+Defined in `data/models/user.py:10-14`.
+
+**Role-specific requirements:**
+
+<Tabs>
+  <Tab title="Admin">
+    ```python
+    role = "admin"
+    artist_id = None  # Admins are not artists
+    ```
+    
+    Grants full system access. Use sparingly.
+  </Tab>
+  
+  <Tab title="Assistant">
+    ```python
+    role = "assistant"
+    artist_id = None  # Assistants are not artists
+    ```
+    
+    Front desk operations with master code elevation.
+  </Tab>
+  
+  <Tab title="Artist">
+    ```python
+    role = "artist"
+    artist_id = 123  # REQUIRED: Link to artist profile
+    ```
+    
+    Must link to an existing artist profile for "own" permissions to work.
+  </Tab>
+</Tabs>
+
+### Password Management
+
+Passwords are hashed using bcrypt before storage:
+
+```python
+from services import auth
+
+# Hash password for new user
+hashed = auth.hash_password(plain_password)
+user.password_hash = hashed
+```
+
+See `services/auth.py:9-10` for password hashing implementation.
+
+<Info>
+  **Security best practice:** Require strong passwords (8+ chars, mixed case, numbers) and rotate master code quarterly.
+</Info>
+
+### Deactivating Users
+
+Instead of deleting user accounts, set `is_active = False` to:
+- Prevent login while preserving audit trail
+- Retain historical data (appointments, notes, transactions)
+- Allow reactivation if staff returns
+
+```python
+user.is_active = False
+db.commit()
+```
+
+The authentication system automatically rejects inactive users (see `services/auth.py:24`).
+
+## Master Code Administration
+
+Admins are responsible for managing the studio's master code, which assistants use for elevated permissions.
+
+### How Master Code Works
+
+The master code is stored as a bcrypt hash in the `settings` table:
+
+```python
+SETTING_KEY = "MASTER_CODE_HASH"
+
+def verify_master_code(plain: str, db: Session) -> bool:
+    row = db.query(Setting).filter(Setting.key == SETTING_KEY).one_or_none()
+    if not row or not row.value:
+        return False
+    return auth.verify_password(plain, row.value)
+```
+
+Defined in `services/permissions.py:149-159`.
+
+### Rotating the Master Code
+
+You should rotate the master code:
+- Every 90 days as a security best practice
+- Immediately when an assistant leaves the studio
+- After any suspected security incident
+
+**Steps:**
+
+1. Navigate to Security Settings (admin only)
+2. Use the "Rotate Master Code" action
+3. System generates new code and displays it once
+4. **Immediately** communicate new code to all active assistants
+5. Old code is invalidated instantly
+
+<Warning>
+  The new master code is displayed only once after generation. Save it securely and distribute to assistants through a secure channel.
+</Warning>
+
+## Security Responsibilities
+
+As an admin, you are responsible for:
+
+### 1. Access Control
+- Regularly review active user accounts
+- Deactivate accounts for departed staff immediately
+- Ensure each person has only the minimum required role
+- Never share admin credentials
+
+### 2. Audit Monitoring
+- Review audit logs regularly for suspicious activity
+- Investigate failed login attempts
+- Monitor elevated actions performed by assistants
+- Track client data exports and modifications
+
+### 3. Data Protection
+- Initiate regular database backups
+- Test backup restoration periodically
+- Ensure client data is handled per privacy regulations
+- Manage secure disposal of client records when required
+
+### 4. System Configuration
+- Keep system settings aligned with business policies
+- Configure appropriate session timeouts
+- Set elevation timeout appropriate for your workflow (default 5 minutes)
+- Maintain integrations with payment processors and other services
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Limit Admin Accounts">
+    Create the minimum number of admin accounts necessary. Typically 1-2 for small studios, 2-3 for larger operations.
+    
+    Use assistant role + master code elevation for day-to-day elevated actions.
+  </Accordion>
+  
+  <Accordion title="Use Strong Authentication">
+    Enforce strong password requirements:
+    - Minimum 8 characters
+    - Mix of uppercase, lowercase, numbers
+    - Change passwords every 90 days
+    - Never reuse passwords
+  </Accordion>
+  
+  <Accordion title="Document Admin Actions">
+    Maintain a log (outside the system) of:
+    - When users were created/deactivated
+    - When master code was rotated and why
+    - System configuration changes
+    - Security incidents and resolutions
+  </Accordion>
+  
+  <Accordion title="Regular Security Reviews">
+    Monthly:
+    - Review active user accounts
+    - Check audit logs for anomalies
+    
+    Quarterly:
+    - Rotate master code
+    - Test backup restoration
+    - Review and update access policies
+  </Accordion>
+</AccordionGroup>
+
+## Example Workflows
+
+### Onboarding a New Artist
+
+1. Create artist profile in Staff Management
+2. Create user account:
+   - Role: `artist`
+   - Link to artist profile via `artist_id`
+   - Set temporary password
+3. Configure artist availability and services
+4. Have artist log in and change password
+5. Artist can now:
+   - View their schedule
+   - Manage their appointments
+   - Upload to their portfolio
+   - View their financial reports
+
+### Onboarding a New Assistant
+
+1. Create user account:
+   - Role: `assistant`
+   - No artist linkage (`artist_id = NULL`)
+   - Set temporary password
+2. Provide master code through secure channel
+3. Train on which actions require master code:
+   - Client edit/delete
+   - Refunds and voids
+   - Cash close
+   - Inventory adjustments
+   - Client data export
+4. Assistant can now handle front desk operations
+
+### Handling Staff Departure
+
+1. Immediately set `is_active = False` on user account
+2. If departing user was an assistant, rotate master code
+3. If departing user was an artist:
+   - Do NOT delete artist profile (historical data)
+   - Reassign or cancel upcoming appointments
+   - Archive portfolio if desired
+4. Review audit logs for any concerning actions
+5. Document departure in external records
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Permissions Matrix" icon="table" href="/roles/permissions">
+    View complete RBAC matrix with all admin permissions
+  </Card>
+  <Card title="Assistant Role" icon="headset" href="/roles/assistant">
+    Understand what assistants can do without admin approval
+  </Card>
+  <Card title="Artist Role" icon="palette" href="/roles/artist">
+    Learn about artist limitations and "own" policies
+  </Card>
+  <Card title="Security Settings" icon="lock" href="/settings/security">
+    Configure system security and master code
+  </Card>
+</CardGroup>

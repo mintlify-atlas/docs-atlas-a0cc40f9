@@ -1,0 +1,287 @@
+---
+title: Financial Reports
+description: Generate and analyze financial reports with charts and exports
+---
+
+The Reports page provides comprehensive financial analysis tools with real-time data, interactive charts, and CSV export capabilities.
+
+## Accessing Reports
+
+Navigate to **Reportes** from the main menu. The page displays:
+- Period selection toolbar
+- Filter options for artist and payment method
+- Transaction table (left)
+- Sales chart (right)
+
+<Info>
+Reports automatically refresh every 6 seconds to show the latest transactions.
+</Info>
+
+## Selecting Time Periods
+
+<Steps>
+
+### Using Quick Periods
+
+Click any period button in the toolbar:
+
+- **Hoy** - Today's transactions
+- **Esta semana** - Current week (Sunday to Saturday)
+- **Este mes** - Current month (1st to last day)
+- **Seleccionar fechas** - Custom date range
+
+<Tip>
+The active period is highlighted with a checked state.
+</Tip>
+
+### Custom Date Range
+
+When you click **Seleccionar fechas**:
+
+1. Date pickers appear showing **De:** (from) and **a:** (to)
+2. Click calendar icons to select dates
+3. The report updates automatically as you change dates
+
+</Steps>
+
+## Filtering Data
+
+Refine your reports using the filter toolbar:
+
+### By Artist
+
+**Tatuador** dropdown (`cbo_artist`):
+- **Todos** - All artists combined
+- Individual artist names from active artists list
+
+<Warning>
+If you're logged in as an artist (not admin), the filter is locked to your own name and cannot be changed.
+</Warning>
+
+### By Payment Method
+
+**Tipo de pago** dropdown (`cbo_payment`):
+- **Todos** - All payment types
+- **Efectivo** - Cash only
+- **Tarjeta** - Card only
+- **Transferencia** - Transfer only
+
+<Info>
+Filters apply to both the transaction table and the sales chart simultaneously.
+</Info>
+
+## Understanding the Transaction Table
+
+The left panel shows detailed transaction records:
+
+### Columns
+
+- **Fecha** - Transaction date (dd/MM/yyyy format)
+- **Cliente** - Client name (or "—" if not linked)
+- **Monto** - Amount in currency format ($X,XXX.XX)
+- **Pago** - Payment method
+- **Tatuador** - Artist who performed the service
+
+### Data Source
+
+Transactions come from the `transactions` table, joined with:
+- `tattoo_sessions` - For session details
+- `clients` - For client names
+- `artists` - For artist names
+
+<Tip>
+Transactions without linked sessions show "—" in the Cliente column.
+</Tip>
+
+## Reading the Sales Chart
+
+The right panel displays an interactive line chart:
+
+### Chart Features
+
+- **X-Axis** - Dates in dd/MM format
+- **Y-Axis** - Sales amounts with $ formatting
+- **Lines** - One per artist (filtered by selection)
+- **Colors** - Match artist colors from `artist_colors.json`
+- **Legend** - Bottom-aligned, horizontal layout
+- **Points** - Visible markers on each data point
+
+### Chart Behavior
+
+<AccordionGroup>
+  <Accordion title="Multiple Artists">
+    When "Todos" is selected, each artist gets their own colored line showing daily sales.
+  </Accordion>
+  <Accordion title="Single Artist">
+    When one artist is selected, only their line appears with full detail.
+  </Accordion>
+  <Accordion title="No Data">
+    Artists with zero sales in the period are excluded from the chart to reduce clutter.
+  </Accordion>
+  <Accordion title="Long Periods">
+    For ranges over 14 days, X-axis labels rotate -45° to prevent overlap.
+  </Accordion>
+</AccordionGroup>
+
+### Artist Colors
+
+Chart line colors are determined by:
+1. `artist_colors.json` entry by ID (as string key)
+2. `artist_colors.json` entry by name
+3. Fallback color palette (10 colors cycling)
+
+```json
+{
+  "1": "#8B5CF6",
+  "2": "#EC4899",
+  "Jesús": "#3B82F6"
+}
+```
+
+<Info>
+The system auto-detects changes to `artist_colors.json` every 2.5 seconds and updates chart colors without refreshing.
+</Info>
+
+## Total Display
+
+The chart header shows:
+- **Period label** - "Hoy", "Esta semana", "Este mes", or date range
+- **Total** - Sum of all filtered transactions in bold
+
+Example: **Total: $12,450.50**
+
+## Exporting Reports
+
+<Steps>
+
+### Step 1: Choose Export Scope
+
+Click **Exportar CSV** and select:
+
+- **Vista actual** - Export with current filters applied
+- **Todos** - Export all transactions in period (ignores artist/payment filters)
+- **Cancelar** - Cancel export
+
+<Warning>
+If you have role="assistant", you'll be prompted to enter an admin password before exporting.
+</Warning>
+
+### Step 2: Select Save Location
+
+The system suggests a filename:
+```
+reportes_{period}_{scope}.csv
+```
+
+Examples:
+- `reportes_hoy_vista.csv`
+- `reportes_semana_todos.csv`
+- `reportes_20260301-20260331_vista.csv`
+
+### Step 3: Open in Spreadsheet
+
+The CSV contains:
+```csv
+Fecha,Cliente,Monto,Pago,Tatuador
+2026-03-04,Juan Pérez,1500.00,Efectivo,Jesús
+2026-03-04,María García,2300.00,Tarjeta,Dylan
+```
+
+</Steps>
+
+## Permission Levels
+
+### Admin
+- View all artist reports
+- Export without restrictions
+- Access full date ranges
+
+### Artist
+- View only their own transactions
+- Artist filter locked to their name
+- Can export their data
+
+### Assistant
+- View all reports
+- Must elevate privileges (enter admin password) to export
+- Full date range access
+
+<Info>
+The export button is only enabled for roles: admin, assistant, and artist.
+</Info>
+
+## Auto-Refresh Behavior
+
+The reports page uses two timers:
+
+### Data Refresh (Every 6 Seconds)
+- Re-queries transactions from database
+- Updates artist list (handles new/deactivated artists)
+- Refreshes table and chart
+- Maintains filter state
+
+### Color Refresh (Every 2.5 Seconds)
+- Detects changes to `artist_colors.json`
+- Reloads color map
+- Updates chart line colors
+- No database query
+
+<Tip>
+This allows real-time updates as new payments are processed in the Appointments or Cash Register sections.
+</Tip>
+
+## Financial Metrics
+
+### Calculating Totals
+
+```python
+total = sum(transaction.amount for transaction in filtered_transactions)
+```
+
+### Commission Tracking
+
+While not displayed in the Reports page, transaction records include:
+- `commission_amount` - Calculated from payment dialog
+- `commission_pct` - Percentage applied
+
+Access detailed commission data through:
+- Direct database queries
+- Custom SQL reports
+- Export and analyze in Excel
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Daily Reviews" icon="calendar-day">
+    Check today's report at end of day to verify all payments were recorded.
+  </Card>
+  <Card title="Weekly Analysis" icon="chart-line">
+    Review weekly trends to identify busy periods and optimize scheduling.
+  </Card>
+  <Card title="Monthly Exports" icon="file-export">
+    Export monthly reports for accounting and tax purposes.
+  </Card>
+  <Card title="Artist Comparison" icon="scale-balanced">
+    Use the "Todos" filter to compare artist performance side-by-side.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Chart not showing">
+    Verify QtChart is installed. The system gracefully degrades if charts are unavailable. Check that there are transactions in the selected period.
+  </Accordion>
+  <Accordion title="Wrong artist color">
+    Ensure `artist_colors.json` exists in the data directory. Keys must be strings ("1" not 1). The file is monitored automatically.
+  </Accordion>
+  <Accordion title="Export fails">
+    Check file system permissions in the save location. For assistants, verify admin password is correct.
+  </Accordion>
+  <Accordion title="Missing transactions">
+    Confirm date filters are correct. Check that transactions have proper artist_id values. Verify you're not filtered to a single artist.
+  </Accordion>
+  <Accordion title="Auto-refresh not working">
+    The page only refreshes when visible. Switch to Reports tab to activate timers. Check database connection if data seems stale.
+  </Accordion>
+</AccordionGroup>

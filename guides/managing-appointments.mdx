@@ -1,0 +1,268 @@
+---
+title: Managing Appointments
+description: Complete guide to scheduling, viewing, and managing tattoo appointments
+---
+
+The Agenda (Appointments) page provides a comprehensive calendar system for managing your studio's bookings.
+
+## Agenda Views
+
+The system offers four different views to suit different workflows:
+
+- **Día** (Day) - Time-slot view of a single day
+- **Semana** (Week) - Week-at-a-glance with all artists
+- **Mes** (Month) - Monthly calendar overview
+- **Lista** (List) - Sortable table of all appointments
+
+Switch views using the **view dropdown** in the toolbar.
+
+## Creating a New Appointment
+
+<Steps>
+
+### Step 1: Open the New Appointment Dialog
+
+Click **+ Nueva cita** from:
+- The sidebar (left panel)
+- The main toolbar
+
+The dialog opens with default values for the current date and time.
+
+### Step 2: Set Basic Details
+
+#### Date and Time
+- **Fecha** (`dt_date`) - Appointment date (calendar picker)
+- **Hora** - Hour (`sp_hour`, 0-23) and minute (`sp_min`, 0-59) spinboxes
+- **Duración (min)** (`sp_dur`) - Duration in minutes (15-600, step by 15)
+
+<Tip>
+The minute spinner increments by 5 minutes for quick selection.
+</Tip>
+
+#### Assignment
+- **Tatuador** (`cbo_artist`) - Select an artist from the dropdown (searchable)
+- **Cliente** (`cb_client`) - Select or search for an existing client
+
+<Info>
+Both artist and client fields are editable with autocomplete. Start typing to filter the list.
+</Info>
+
+#### Service Details
+- **Servicio** (`ed_service`) - Describe the service, design, or notes
+- **Estado** (`cbo_status`) - Initial status:
+  - Activa (Active) - Default
+  - En espera (On hold)
+  - Completada (Completed)
+  - Cancelada (Cancelled)
+
+### Step 3: Save the Appointment
+
+Click **Crear** to save. The appointment appears on the calendar with:
+- Client name
+- Service description  
+- Start time
+- Color-coded by artist
+- Border color indicating status
+
+</Steps>
+
+## Editing an Appointment
+
+<Steps>
+
+### Step 1: Open Appointment Details
+
+Click any appointment card on the calendar to open the edit dialog.
+
+### Step 2: Modify Details
+
+Change any of the following:
+- Date and time
+- Duration
+- Artist assignment
+- Client assignment
+- Service notes
+- Status
+
+<Warning>
+Changing the artist will update the appointment color. Make sure the new artist is available at the scheduled time.
+</Warning>
+
+### Step 3: Save Changes
+
+Click **Guardar** to update the appointment.
+
+</Steps>
+
+## Appointment Status
+
+Appointments can have different statuses that affect their appearance:
+
+<AccordionGroup>
+  <Accordion title="Activa (Active)" icon="calendar-check">
+    Default status for new appointments. Fully visible with bright artist color.
+  </Accordion>
+  <Accordion title="En espera (On Hold)" icon="hourglass-half">
+    Appointment is tentative. Displayed with medium opacity and yellow status bar.
+  </Accordion>
+  <Accordion title="Completada (Completed)" icon="circle-check">
+    Session finished. Displayed with high opacity and blue status bar.
+  </Accordion>
+  <Accordion title="Cancelada (Cancelled)" icon="ban">
+    Appointment cancelled. Displayed with low opacity and red status bar.
+  </Accordion>
+  <Accordion title="No-show" icon="user-slash">
+    Client didn't show up. Displayed with purple status bar.
+  </Accordion>
+</AccordionGroup>
+
+## Appointment Context Menu
+
+Right-click any appointment to access quick actions:
+
+- **Editar** - Open edit dialog
+- **Completar** - Mark as completed
+- **Cancelar** - Mark as cancelled
+- **Cobrar** - Process payment
+- **Eliminar** - Delete appointment
+
+<Warning>
+Deleting an appointment is permanent. Use the "Cancelada" status instead if you want to keep a record.
+</Warning>
+
+## Processing Payments
+
+When an appointment is completed:
+
+<Steps>
+
+### Step 1: Open Payment Dialog
+
+Right-click the appointment and select **Cobrar**, or use the context menu.
+
+### Step 2: Enter Payment Details
+
+- **Precio** (`sp_amount`) - Total amount
+- **Comisión (%)** (`sp_comm`) - Studio commission percentage
+- **Método de pago** (`cbo_method`):
+  - Efectivo (Cash)
+  - Tarjeta (Card)
+  - Transferencia (Transfer)
+  - Mixto (Mixed)
+- **Nota** (`ed_note`) - Payment reference or notes
+
+<Info>
+The commission amount is automatically calculated and displayed based on the percentage and total amount.
+</Info>
+
+### Step 3: Confirm Payment
+
+Click **OK** to save. The system creates a transaction record linked to:
+- The session/appointment
+- The artist
+- The client
+
+</Steps>
+
+## Filtering Appointments
+
+The sidebar offers several filtering options:
+
+### By Date
+
+Use the mini calendar to jump to any date. The selected date is highlighted.
+
+### By Artist
+
+Check/uncheck artist names to show/hide their appointments. Each artist has:
+- A colored checkbox matching their assigned color
+- Name label
+- Appointment count
+
+### By Status
+
+Use the **Estado** dropdown to filter:
+- Todos (All)
+- Activa
+- Completada
+- Cancelada
+- En espera
+
+### By Client
+
+Type in the **Buscar cliente** field to filter appointments by client name.
+
+<Tip>
+Filters work together. For example, you can view only active appointments for a specific artist on a particular date.
+</Tip>
+
+## Navigation Controls
+
+### Date Navigation
+
+- **Hoy** - Jump to today's date
+- **‹ / ›** - Navigate to previous/next period (day/week/month depending on view)
+- Mini calendar - Click any date to jump to it
+
+### View Controls
+
+- **Día / Semana / Mes / Lista** - Switch between calendar views
+- **Exportar** - Export appointments to CSV:
+  - Día actual (Current day)
+  - Semana (Week)
+  - Lista (Filtered list)
+
+## Exporting Appointments
+
+Export appointments to CSV for external use:
+
+<Steps>
+
+1. Click **Exportar ▾** in the toolbar
+2. Select export scope:
+   - **Día actual (CSV)** - Today's appointments
+   - **Semana (CSV)** - Current week
+   - **Lista (CSV)** - Current filtered list view
+3. Choose save location
+4. Open the CSV in Excel or your preferred spreadsheet application
+
+</Steps>
+
+## Agenda Settings
+
+Customize working hours in `settings.json`:
+
+```json
+{
+  "agenda_hours": {
+    "start": "08:00",
+    "end": "21:30",
+    "step": 30
+  }
+}
+```
+
+- **start** - Day start time (HH:MM format)
+- **end** - Day end time
+- **step** - Time slot interval in minutes (5, 10, 15, 20, 30, or 60)
+
+<Check>
+Changes to agenda hours apply immediately when you return to the Appointments page.
+</Check>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Confirm Appointments" icon="phone">
+    Contact clients 24 hours before their appointment to reduce no-shows.
+  </Card>
+  <Card title="Use Status Effectively" icon="traffic-light">
+    Mark tentative bookings as "En espera" until deposits are received.
+  </Card>
+  <Card title="Track Completion" icon="list-check">
+    Mark appointments as "Completada" when finished to maintain accurate records.
+  </Card>
+  <Card title="Document No-Shows" icon="calendar-xmark">
+    Use the "No-show" status instead of deleting to track client reliability.
+  </Card>
+</CardGroup>

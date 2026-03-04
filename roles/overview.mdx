@@ -1,0 +1,170 @@
+---
+title: User Roles Overview
+description: Understanding the three-role permission system in Tattoo Studio Manager
+---
+
+Tattoo Studio Manager implements a Role-Based Access Control (RBAC) system with three distinct user roles, each designed for specific responsibilities within your tattoo studio.
+
+## The Three-Role System
+
+The application uses a simplified yet powerful three-role hierarchy:
+
+<CardGroup cols={3}>
+  <Card title="Admin" icon="shield-halved" href="/roles/admin">
+    Full system access with unrestricted permissions
+  </Card>
+  <Card title="Assistant" icon="headset" href="/roles/assistant">
+    Front desk operations with master code elevation
+  </Card>
+  <Card title="Artist" icon="palette" href="/roles/artist">
+    Limited to own schedule, portfolio, and reports
+  </Card>
+</CardGroup>
+
+## Role Assignment
+
+Each user account is assigned exactly one role during creation. The role determines:
+
+- Which resources and actions the user can access
+- Whether ownership restrictions apply (for artists)
+- Which operations require master code elevation (for assistants)
+
+Roles are stored in the `users.role` field and can be one of:
+
+```python
+role = "admin" | "assistant" | "artist"
+```
+
+See `data/models/user.py:12` for the user model definition.
+
+## Artist Linking
+
+Users with the `artist` role must be linked to an artist profile via the `artist_id` field:
+
+```python
+artist_id = Column(Integer, ForeignKey("artists.id"), nullable=True)
+```
+
+This linking enables the "own" permission policy, restricting artists to only their own:
+- Appointments and schedule blocks
+- Portfolio uploads
+- Financial reports and transactions
+- Client notes and consent forms (for their appointments)
+
+## Permission Philosophy
+
+The RBAC system is designed around three core principles:
+
+### 1. Fail-Safe Defaults
+Any resource/action combination not explicitly defined in the RBAC matrix defaults to `deny`. This ensures new features are secure by default.
+
+### 2. Least Privilege
+Each role receives only the permissions necessary for their job function:
+- **Artists** can manage their own work but cannot access studio-wide settings
+- **Assistants** handle daily operations but need admin approval (via master code) for sensitive actions
+- **Admins** have unrestricted access for studio management
+
+### 3. Defense in Depth
+Permissions are enforced at multiple layers:
+- UI layer: Hide/disable controls based on `can()` checks
+- Service layer: Use `enforce()` before database writes
+- API layer: Validate permissions on every request
+
+See `services/permissions.py:167-189` for the `enforce()` implementation.
+
+## Permission Policies
+
+The RBAC matrix uses four distinct policy values:
+
+<AccordionGroup>
+  <Accordion title="allow - Full Access">
+    User can perform this action without restrictions.
+    
+    Example: Admin can edit any client record.
+  </Accordion>
+  
+  <Accordion title="own - Ownership Required">
+    User can only perform this action on resources they own (via `artist_id` matching).
+    
+    Example: Artist can only edit appointments assigned to them.
+  </Accordion>
+  
+  <Accordion title="locked - Master Code Required">
+    Assistant can perform this action only after entering the master code for temporary elevation.
+    
+    Example: Assistant needs master code to delete a client or process a refund.
+  </Accordion>
+  
+  <Accordion title="deny - No Access">
+    User cannot perform this action under any circumstances.
+    
+    Example: Artist cannot access system security settings.
+  </Accordion>
+</AccordionGroup>
+
+For detailed information on the permission matrix, see [Permissions Reference](/roles/permissions).
+
+## Master Code Elevation
+
+Assistants can temporarily gain elevated permissions by entering the studio's master code. This is a key security feature that allows:
+
+- Day-to-day operations without constant admin oversight
+- Protection of sensitive actions (refunds, client deletion, cash close)
+- Audit trail of when elevated permissions were used
+
+Elevation is time-limited (default 5 minutes) and applies only to actions marked as `locked` for assistants.
+
+<Info>
+  Learn more about master code elevation in [Assistant Role](/roles/assistant#master-code-elevation)
+</Info>
+
+## Key Resources
+
+The permission system controls access to six major resource categories:
+
+| Resource | Description | Key Actions |
+|----------|-------------|-------------|
+| `agenda` | Appointments and schedule | view, create, edit, cancel, complete |
+| `clients` | Client database | view, create, edit, delete, consent |
+| `staff` | User and artist management | view, manage_users, toggle_active |
+| `reports` | Financial reports and transactions | view, export, refund_void, cash_close |
+| `inventory` | Stock and supplies | view, create_item, stock_in, stock_adj |
+| `security` | System settings and security | settings, audit, backup, rotate_code |
+
+The complete permission matrix is defined in `services/permissions.py:38-87`.
+
+## Implementation
+
+The permission system is centralized in the `services/permissions` module:
+
+```python
+from services.permissions import can, enforce, assistant_needs_code
+
+# Check if current user can perform action
+if can(user.role, "clients", "edit", owner_id=client.artist_id, 
+       user_artist_id=user.artist_id, user_id=user.id):
+    # Show edit button
+    pass
+
+# Enforce permission before database write
+enforce(resource="clients", action="delete", db=db)
+```
+
+See `services/permissions.py:115-145` for the core `can()` function.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Admin Role" icon="shield-halved" href="/roles/admin">
+    Learn about full system access and admin capabilities
+  </Card>
+  <Card title="Assistant Role" icon="headset" href="/roles/assistant">
+    Understand front desk operations and master code elevation
+  </Card>
+  <Card title="Artist Role" icon="palette" href="/roles/artist">
+    Discover artist-specific permissions and limitations
+  </Card>
+  <Card title="Permissions Matrix" icon="table" href="/roles/permissions">
+    View the complete RBAC permission matrix
+  </Card>
+</CardGroup>

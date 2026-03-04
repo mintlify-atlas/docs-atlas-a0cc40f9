@@ -1,0 +1,244 @@
+---
+title: Portfolio Management
+description: Upload, organize, and display tattoo work in artist portfolios
+---
+
+The Portfolio system allows you to organize and showcase completed tattoo work for each artist and user in your studio.
+
+## Understanding Portfolio Structure
+
+Portfolio items are linked to:
+- **Users** (primary) - Each user has their own portfolio
+- **Artists** (fallback) - For backward compatibility with older items
+- **Sessions** (optional) - Link work to specific appointments
+- **Clients** (optional) - Associate work with client records
+
+<Info>
+The system automatically uses the user_id when available, falling back to artist_id for legacy items.
+</Info>
+
+## Selecting a User Portfolio
+
+<Steps>
+
+### Step 1: View User List
+
+The left sidebar shows all users with:
+- **Avatar** - User profile picture or initials
+- **Name** - Username or artist name
+- **Role chip** - Tatuador, Admin, Asistente, etc.
+- **Status chip** - Activo (green) or Inactivo (gray)
+- **Count badge** - Number of portfolio items
+- **Color bar** - Top accent in artist color (for tattoo artists)
+
+### Step 2: Select a User
+
+Click any user card to load their portfolio. The selected user is highlighted with a thicker border.
+
+</Steps>
+
+## Adding Portfolio Images
+
+<Steps>
+
+### Step 1: Select Target User
+
+Click the user whose portfolio you want to add to (see above).
+
+### Step 2: Open Upload Dialog
+
+Click the **+** button in the toolbar.
+
+### Step 3: Select Images
+
+In the file picker:
+- Select one or multiple images
+- Supported formats: PNG, JPG, JPEG, WebP, BMP
+- Multiple selection is enabled for batch uploads
+
+### Step 4: Link to Session (Optional)
+
+For artists, a session selection dialog appears:
+- **— No vincular —** - Don't link to a session
+- **Session list** - Recent sessions showing:
+  - Session ID
+  - Date
+  - Client name
+
+Select a session to automatically populate:
+- Artist ID
+- Client ID
+
+from the session data.
+
+<Tip>
+Linking portfolio items to sessions helps track which work belongs to which client and appointment.
+</Tip>
+
+### Step 5: Confirm Upload
+
+Click **Continuar**. The system:
+1. Creates the user's portfolio directory if needed
+2. Copies images to `uploads/portfolios/{user_id}/`
+3. Handles duplicate filenames automatically (appends _1, _2, etc.)
+4. Creates portfolio item records
+5. Refreshes the gallery
+6. Updates the user's item count
+
+</Steps>
+
+## Viewing Portfolio Items
+
+### Gallery View
+
+Portfolio items are displayed as cards in a flowing grid:
+- **Thumbnail** - Image scaled to 260px height
+- **Date** - Creation date in YYYY-MM-DD format
+- **Hover effect** - Border brightens on hover
+- **Drop shadow** - Subtle depth effect
+
+### Item Details
+
+Click any portfolio card to open the detail dialog showing:
+
+- **Full-size image** - Up to 640px wide
+- **Fecha** - Creation date
+- **Artista** - Artist name
+- **Sesión** - Session ID, status, and price (if linked)
+- **Cliente** - Client name (if linked)
+- **Transacción** - Transaction details (if paid)
+- **Notas** - Caption or notes field
+
+<Info>
+The detail dialog is draggable. Click and hold the background to reposition it.
+</Info>
+
+## Filtering Portfolio Items
+
+The toolbar provides several filter options:
+
+### Style Filter
+- **Estilo: Todos** - All styles
+- Filters by the `style` field if populated
+
+### Body Area Filter
+- **Zona: Todas** - All body areas
+- Filters by the `body_area` field if populated
+
+### Color Mode Filter
+- **Color: Todos** - All items
+- **Color** - Color tattoos only
+- **B&N** - Black and gray only
+
+### State Filter
+- **Estado: Todos** - All items
+- **Fresh** - Fresh tattoo photos
+- **Healed** - Healed tattoo photos
+
+### Sorting
+- **Más recientes** - Newest first (default)
+- **Más antiguos** - Oldest first
+
+<Tip>
+Filters work in combination. Use "Limpiar" to reset all filters to default values.
+</Tip>
+
+## Portfolio Storage
+
+### Directory Structure
+
+```
+data_directory/
+└── uploads/
+    └── portfolios/
+        ├── {user_id_1}/
+        │   ├── image1.jpg
+        │   ├── image2.png
+        │   └── ...
+        ├── {user_id_2}/
+        └── ...
+```
+
+### Legacy Compatibility
+
+Older installations stored avatars in `assets/`. The system automatically:
+1. Checks the new data directory first
+2. Falls back to legacy location if needed
+3. Migrates files when accessed
+
+<Info>
+All portfolio data is stored locally, giving you full control and no cloud dependencies.
+</Info>
+
+## Portfolio Metadata
+
+Each portfolio item can store:
+
+- **path** - Full file path (required)
+- **user_id** - Owner user ID (preferred)
+- **artist_id** - Artist ID (fallback)
+- **session_id** - Linked session
+- **client_id** - Associated client
+- **transaction_id** - Payment record
+- **style** - Tattoo style
+- **body_area** - Body placement
+- **color_mode** - "color" or "bn"
+- **fresh_or_healed** - "fresh" or "healed"
+- **caption** - Notes or description
+- **created_at** - Upload timestamp
+
+<Warning>
+Currently, style, body_area, color_mode, and fresh_or_healed are not editable from the UI. These fields are reserved for future filtering features.
+</Warning>
+
+## User Colors
+
+Artists have color-coded portfolios:
+- **Color bar** - Top accent on user cards
+- **Role chip** - Border matches artist color
+- **Avatar dot** - Indicator dot in artist color
+
+Colors are assigned from:
+1. `artist_colors.json` by artist_id (key as string)
+2. Fallback color palette based on ID modulo 10
+
+## Permissions
+
+Portfolio access:
+- All users can **view** portfolios
+- Users can **upload** to their own portfolio
+- Admins can **upload** to any portfolio
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="High Quality Images" icon="image">
+    Upload high-resolution photos for the best portfolio presentation.
+  </Card>
+  <Card title="Link to Sessions" icon="link">
+    Always link portfolio items to sessions when possible for better organization.
+  </Card>
+  <Card title="Regular Updates" icon="calendar-plus">
+    Add fresh work regularly to keep portfolios current and impressive.
+  </Card>
+  <Card title="Proper Attribution" icon="user-tag">
+    Ensure each piece is uploaded to the correct artist's portfolio.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Upload fails with no error">
+    Check that the uploads/portfolios directory is writable and has sufficient disk space.
+  </Accordion>
+  <Accordion title="Image not displaying">
+    Verify the file still exists at the stored path. The system uses absolute paths.
+  </Accordion>
+  <Accordion title="Session link dialog doesn't appear">
+    This only shows for users with role="artist" and a valid artist_id. Other user types upload directly.
+  </Accordion>
+  <Accordion title="Count not updating">
+    The count badge refreshes after successful uploads. Try reloading the page if it seems stuck.
+  </Accordion>
+</AccordionGroup>

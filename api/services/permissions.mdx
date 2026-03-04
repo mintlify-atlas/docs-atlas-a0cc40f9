@@ -1,0 +1,483 @@
+---
+title: 'Permissions Service'
+description: 'Role-based access control (RBAC) with temporary elevation and master code verification'
+icon: 'lock'
+---
+
+The permissions service implements a comprehensive RBAC (Role-Based Access Control) system with support for temporary privilege elevation using a master code.
+
+## Overview
+
+Location: `services/permissions.py`
+
+This module provides:
+- Role-based permission checking across all resources
+- Temporary privilege elevation for assistants
+- Master code verification for sensitive operations
+- Centralized RBAC policy matrix
+- Permission enforcement helpers
+
+## Core Concepts
+
+### Roles
+
+The system supports three user roles:
+- **admin**: Full access to all features and settings
+- **assistant**: Limited access, can elevate privileges with master code
+- **artist**: Access to own appointments, portfolio, and client interactions
+
+### Policy Values
+
+<CardGroup cols={2}>
+  <Card title="allow" icon="check">
+    Full permission granted for this role
+  </Card>
+  <Card title="own" icon="user">
+    Permission granted only for owned resources (artist role)
+  </Card>
+  <Card title="locked" icon="key">
+    Requires master code elevation (assistant only)
+  </Card>
+  <Card title="deny" icon="ban">
+    Permission explicitly denied
+  </Card>
+</CardGroup>
+
+### Resources
+
+Protected resources include:
+- `agenda` - Appointment scheduling
+- `clients` - Client data management
+- `staff` - User and staff management
+- `portfolio` - Artist portfolio items
+- `reports` - Financial reports and transactions
+- `inventory` - Stock and inventory management
+- `security` - System settings and backups
+
+## RBAC Matrix
+
+The complete permission matrix is defined in the `RBAC` dictionary at `services/permissions.py:38-87`.
+
+<Accordion title="View example permissions">
+
+```python
+RBAC = {
+    # Agenda permissions
+    ("agenda", "view"):     {"admin": "allow", "assistant": "allow", "artist": "allow"},
+    ("agenda", "create"):   {"admin": "allow", "assistant": "allow", "artist": "own"},
+    ("agenda", "edit"):     {"admin": "allow", "assistant": "allow", "artist": "own"},
+    
+    # Client permissions
+    ("clients", "view"):    {"admin": "allow", "assistant": "allow", "artist": "allow"},
+    ("clients", "edit"):    {"admin": "allow", "assistant": "locked", "artist": "deny"},
+    ("clients", "delete"):  {"admin": "allow", "assistant": "locked", "artist": "deny"},
+    
+    # Security permissions
+    ("security", "settings"):    {"admin": "allow", "assistant": "deny", "artist": "deny"},
+    ("security", "backup"):      {"admin": "allow", "assistant": "deny", "artist": "deny"},
+}
+```
+
+</Accordion>
+
+## Functions
+
+### can
+
+Checks if a role has permission to perform an action on a resource.
+
+<ParamField path="role" type="string" required>
+  User role: "admin", "assistant", or "artist"
+</ParamField>
+
+<ParamField path="resource" type="string" required>
+  Resource name (e.g., "agenda", "clients", "inventory")
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  Action to perform (e.g., "view", "create", "edit", "delete")
+</ParamField>
+
+<ParamField path="owner_id" type="int">
+  Resource owner's artist_id (for "own" policy checks)
+</ParamField>
+
+<ParamField path="user_artist_id" type="int">
+  Current user's artist_id (for "own" policy checks)
+</ParamField>
+
+<ParamField path="user_id" type="int">
+  Current user's ID (for elevation status checks)
+</ParamField>
+
+**Returns:** `bool` - `True` if permission is granted, `False` otherwise
+
+<CodeGroup>
+
+```python Basic usage
+from services.permissions import can
+
+# Check if assistant can view clients
+allowed = can("assistant", "clients", "view")
+print(allowed)  # True
+
+# Check if artist can delete clients
+allowed = can("artist", "clients", "delete")
+print(allowed)  # False
+```
+
+```python Ownership check
+from services.permissions import can
+
+# Artist can only edit their own appointments
+allowed = can(
+    role="artist",
+    resource="agenda",
+    action="edit",
+    owner_id=5,          # Appointment belongs to artist ID 5
+    user_artist_id=5     # Current user is artist ID 5
+)
+print(allowed)  # True
+
+allowed = can(
+    role="artist",
+    resource="agenda",
+    action="edit",
+    owner_id=5,          # Appointment belongs to artist ID 5
+    user_artist_id=3     # Current user is artist ID 3
+)
+print(allowed)  # False - not the owner
+```
+
+```python Elevation check
+from services.permissions import can, elevate_for
+
+# Assistant needs elevation for locked actions
+user_id = 10
+allowed = can(
+    role="assistant",
+    resource="clients",
+    action="edit",
+    user_id=user_id
+)
+print(allowed)  # False - locked action, not elevated
+
+# Elevate privileges
+elevate_for(user_id, minutes=5)
+
+allowed = can(
+    role="assistant",
+    resource="clients",
+    action="edit",
+    user_id=user_id
+)
+print(allowed)  # True - now elevated
+```
+
+</CodeGroup>
+
+---
+
+### assistant_needs_code
+
+Determines if a specific action requires master code elevation for assistants.
+
+<ParamField path="resource" type="string" required>
+  Resource name
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  Action to check
+</ParamField>
+
+**Returns:** `bool` - `True` if the action has "locked" policy for assistants
+
+<CodeGroup>
+
+```python Usage
+from services.permissions import assistant_needs_code
+
+# Check if editing clients requires elevation
+needs_code = assistant_needs_code("clients", "edit")
+print(needs_code)  # True
+
+# Check if viewing clients requires elevation
+needs_code = assistant_needs_code("clients", "view")
+print(needs_code)  # False
+```
+
+</CodeGroup>
+
+---
+
+### is_elevated_now
+
+Checks if a user currently has elevated privileges.
+
+<ParamField path="user_id" type="int" required>
+  User ID to check
+</ParamField>
+
+**Returns:** `bool` - `True` if the user has active elevation
+
+<CodeGroup>
+
+```python Usage
+from services.permissions import is_elevated_now, elevate_for
+import time
+
+user_id = 10
+
+print(is_elevated_now(user_id))  # False
+
+elevate_for(user_id, minutes=1)
+print(is_elevated_now(user_id))  # True
+
+time.sleep(61)  # Wait for elevation to expire
+print(is_elevated_now(user_id))  # False
+```
+
+</CodeGroup>
+
+---
+
+### elevate_for
+
+Grants temporary elevated privileges to a user.
+
+<ParamField path="user_id" type="int" required>
+  User ID to elevate
+</ParamField>
+
+<ParamField path="minutes" type="int" default={5}>
+  Duration of elevation in minutes
+</ParamField>
+
+**Returns:** `None`
+
+<CodeGroup>
+
+```python Usage
+from services.permissions import elevate_for, is_elevated_now
+
+user_id = 10
+
+# Elevate for default 5 minutes
+elevate_for(user_id)
+print(is_elevated_now(user_id))  # True
+
+# Elevate for custom duration
+elevate_for(user_id, minutes=15)
+print(is_elevated_now(user_id))  # True
+```
+
+</CodeGroup>
+
+<Warning>
+  Elevation is stored in-memory only. Server restarts will clear all active elevations.
+</Warning>
+
+---
+
+### verify_master_code
+
+Verifies a master code against the stored hash in the database.
+
+<ParamField path="plain" type="string" required>
+  Plain text master code to verify
+</ParamField>
+
+<ParamField path="db" type="Session" required>
+  SQLAlchemy database session
+</ParamField>
+
+**Returns:** `bool` - `True` if the code matches, `False` otherwise
+
+<CodeGroup>
+
+```python Usage
+from services.permissions import verify_master_code, elevate_for
+from data.db.session import SessionLocal
+
+user_id = 10
+user_input = "master_code_123"
+
+with SessionLocal() as db:
+    if verify_master_code(user_input, db):
+        elevate_for(user_id, minutes=5)
+        print("Elevation granted")
+    else:
+        print("Invalid master code")
+```
+
+</CodeGroup>
+
+<Info>
+  The master code hash is stored in the `settings` table with key `"MASTER_CODE_HASH"`. Use the same bcrypt functions from the auth service to set it.
+</Info>
+
+---
+
+### enforce
+
+Raises a `PermissionError` if the current user lacks permission. Used for defense-in-depth within service functions.
+
+<ParamField path="resource" type="string" required>
+  Resource being accessed
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  Action being performed
+</ParamField>
+
+<ParamField path="owner_id" type="int">
+  Resource owner's ID for ownership checks
+</ParamField>
+
+<ParamField path="db" type="Session">
+  Database session (for future use)
+</ParamField>
+
+**Returns:** `None` - Raises `PermissionError` if not allowed
+
+<CodeGroup>
+
+```python Usage
+from services.permissions import enforce, PermissionError
+
+def delete_client(client_id: int):
+    """Service function to delete a client."""
+    try:
+        # Check permissions before proceeding
+        enforce(resource="clients", action="delete")
+        
+        # Proceed with deletion
+        # ...
+        
+    except PermissionError as e:
+        print(f"Access denied: {e}")
+        raise
+```
+
+```python With ownership
+from services.permissions import enforce, PermissionError
+
+def edit_appointment(appointment_id: int, artist_id: int):
+    """Service function to edit an appointment."""
+    try:
+        enforce(
+            resource="agenda",
+            action="edit",
+            owner_id=artist_id  # The appointment owner
+        )
+        
+        # Proceed with edit
+        # ...
+        
+    except PermissionError as e:
+        print(f"Access denied: {e}")
+        raise
+```
+
+</CodeGroup>
+
+<Tip>
+  Use `enforce()` at the beginning of service functions that modify data to provide defense-in-depth security.
+</Tip>
+
+---
+
+### clear_elevation
+
+Removes elevation status for a specific user.
+
+<ParamField path="user_id" type="int" required>
+  User ID to clear elevation for
+</ParamField>
+
+**Returns:** `None`
+
+<CodeGroup>
+
+```python Usage
+from services.permissions import elevate_for, clear_elevation, is_elevated_now
+
+user_id = 10
+
+elevate_for(user_id)
+print(is_elevated_now(user_id))  # True
+
+clear_elevation(user_id)
+print(is_elevated_now(user_id))  # False
+```
+
+</CodeGroup>
+
+<Info>
+  Call this function when a user logs out to ensure their elevation doesn't persist.
+</Info>
+
+## Typical Workflow
+
+<Steps>
+  <Step title="User attempts restricted action">
+    An assistant tries to edit client information, which is a "locked" action.
+  </Step>
+  
+  <Step title="System checks permission">
+    Call `can()` to verify if the action is allowed. Returns `False` for locked actions without elevation.
+  </Step>
+  
+  <Step title="Prompt for master code">
+    The UI prompts the assistant to enter the master code.
+  </Step>
+  
+  <Step title="Verify and elevate">
+    Call `verify_master_code()` with the input. If valid, call `elevate_for()` to grant temporary privileges.
+  </Step>
+  
+  <Step title="Perform action">
+    The assistant can now perform locked actions for the duration of the elevation period.
+  </Step>
+  
+  <Step title="Elevation expires">
+    After the specified time, `is_elevated_now()` returns `False` and locked actions are denied again.
+  </Step>
+</Steps>
+
+## Permission Examples
+
+<AccordionGroup>
+  <Accordion title="Agenda permissions">
+    - **View**: All roles can view the agenda
+    - **Create/Edit**: Admin and assistant can manage any appointment; artists can only manage their own
+    - **Export**: Admin and assistant can export; artists can export only their own data
+  </Accordion>
+  
+  <Accordion title="Client permissions">
+    - **View/Create**: All roles allowed
+    - **Edit/Delete**: Admin always allowed; assistant needs master code; artist denied
+    - **Export**: Admin always allowed; assistant needs master code; artist denied
+  </Accordion>
+  
+  <Accordion title="Staff permissions">
+    - **View**: All roles can view staff list
+    - **Manage users**: Admin only
+    - **Portfolio**: All can view; artists can edit only their own
+  </Accordion>
+  
+  <Accordion title="Security permissions">
+    - **All actions**: Admin only (settings, audit logs, backups, code rotation)
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Authentication Service" icon="shield-halved" href="/api/services/auth">
+    User authentication and password management
+  </Card>
+  <Card title="User Roles" icon="users" href="/roles/overview">
+    Detailed role descriptions and capabilities
+  </Card>
+</CardGroup>

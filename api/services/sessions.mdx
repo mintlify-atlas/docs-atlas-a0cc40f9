@@ -1,0 +1,595 @@
+---
+title: 'Sessions Service'
+description: 'Tattoo session management including creation, updates, completion, and scheduling validation'
+icon: 'calendar-check'
+---
+
+The sessions service manages the complete lifecycle of tattoo appointments, from scheduling to completion with payment processing.
+
+## Overview
+
+Location: `services/sessions.py`
+
+This module handles:
+- Tattoo session creation and scheduling
+- Schedule conflict detection
+- Session status management
+- Session completion with transaction creation
+- Commission calculations
+- Session listing and filtering
+
+## Session Status Values
+
+<CardGroup cols={2}>
+  <Card title="Activa" icon="clock">
+    Scheduled and confirmed session
+  </Card>
+  <Card title="Completada" icon="check">
+    Finished session with payment recorded
+  </Card>
+  <Card title="En espera" icon="hourglass">
+    Tentative or pending confirmation
+  </Card>
+  <Card title="Cancelada" icon="xmark">
+    Cancelled session (includes no-shows)
+  </Card>
+</CardGroup>
+
+## Payment Methods
+
+<CardGroup cols={3}>
+  <Card title="Efectivo" icon="money-bill">
+    Cash payment
+  </Card>
+  <Card title="Tarjeta" icon="credit-card">
+    Card payment
+  </Card>
+  <Card title="Transferencia" icon="money-bill-transfer">
+    Bank transfer
+  </Card>
+</CardGroup>
+
+## Functions
+
+### create_session
+
+Creates a new tattoo session after validating schedule conflicts.
+
+<ParamField path="payload" type="dict" required>
+  Session data dictionary
+</ParamField>
+
+**Payload structure:**
+- `client_id` (int): Client identifier
+- `artist_id` (int): Artist identifier
+- `start` (datetime): Session start time
+- `end` (datetime): Session end time
+- `price` (float): Session price
+- `notes` (Optional[str]): Additional notes
+
+**Returns:** `int` - The ID of the created session
+
+**Raises:** `ValueError` - If schedule conflict detected or invalid time range
+
+<CodeGroup>
+
+```python Usage
+from services.sessions import create_session
+from datetime import datetime, timedelta
+
+# Schedule a new tattoo session
+now = datetime.now()
+session_data = {
+    "client_id": 15,
+    "artist_id": 3,
+    "start": now.replace(hour=14, minute=0),
+    "end": now.replace(hour=17, minute=0),
+    "price": 5000.0,
+    "notes": "Continuation of sleeve tattoo"
+}
+
+try:
+    session_id = create_session(session_data)
+    print(f"Session created with ID: {session_id}")
+except ValueError as e:
+    print(f"Cannot create session: {e}")
+```
+
+```python With conflict handling
+from services.sessions import create_session
+from datetime import datetime
+
+session_data = {
+    "client_id": 20,
+    "artist_id": 5,
+    "start": datetime(2026, 3, 10, 10, 0),
+    "end": datetime(2026, 3, 10, 13, 0),
+    "price": 3500.0,
+}
+
+try:
+    session_id = create_session(session_data)
+    print(f"Session scheduled: {session_id}")
+except ValueError as e:
+    if "Choque de horario" in str(e):
+        print("Artist already has a session at this time")
+    elif "anterior al fin" in str(e):
+        print("Start time must be before end time")
+    else:
+        print(f"Error: {e}")
+```
+
+</CodeGroup>
+
+<Info>
+  The function automatically sets the session status to "Activa" upon creation.
+</Info>
+
+---
+
+### update_session
+
+Updates an existing session's details.
+
+<ParamField path="session_id" type="int" required>
+  ID of the session to update
+</ParamField>
+
+<ParamField path="payload" type="dict" required>
+  Dictionary with fields to update
+</ParamField>
+
+**Updatable fields:**
+- `start` (datetime): New start time
+- `end` (datetime): New end time
+- `price` (float): Updated price
+- `notes` (str): Updated notes
+- `status` (str): New status (except "Completada")
+- `artist_id` (int): Reassign to different artist
+- `commission_override` (float): Custom commission rate
+
+**Returns:** `None`
+
+**Raises:** `ValueError` - If session not found, invalid status, or schedule conflict
+
+<CodeGroup>
+
+```python Usage
+from services.sessions import update_session
+from datetime import datetime
+
+# Update session time and price
+update_session(session_id=42, payload={
+    "start": datetime(2026, 3, 10, 11, 0),
+    "end": datetime(2026, 3, 10, 14, 0),
+    "price": 4000.0,
+    "notes": "Client requested earlier time"
+})
+
+print("Session updated successfully")
+```
+
+```python Change status
+from services.sessions import update_session
+
+# Move session to waiting status
+try:
+    update_session(session_id=42, payload={
+        "status": "En espera"
+    })
+    print("Session status changed to waiting")
+except ValueError as e:
+    print(f"Cannot update: {e}")
+```
+
+```python Reassign artist
+from services.sessions import update_session
+from datetime import datetime
+
+# Reassign to different artist
+try:
+    update_session(session_id=42, payload={
+        "artist_id": 7,
+        "start": datetime(2026, 3, 10, 15, 0),
+        "end": datetime(2026, 3, 10, 18, 0),
+    })
+    print("Session reassigned")
+except ValueError as e:
+    if "Choque de horario" in str(e):
+        print("New artist not available at this time")
+```
+
+</CodeGroup>
+
+<Warning>
+  Cannot use this function to mark a session as "Completada". Use `complete_session()` instead to properly handle payment and transaction creation.
+</Warning>
+
+---
+
+### complete_session
+
+Marks a session as complete and creates the associated financial transaction.
+
+<ParamField path="session_id" type="int" required>
+  ID of the session to complete
+</ParamField>
+
+<ParamField path="payment" type="dict" required>
+  Payment information dictionary
+</ParamField>
+
+**Payment structure:**
+- `method` (str): Payment method - "Efectivo", "Tarjeta", or "Transferencia"
+
+**Returns:** `int` - The ID of the created transaction
+
+**Raises:** `ValueError` - If session not found, already completed, or cancelled
+
+<CodeGroup>
+
+```python Usage
+from services.sessions import complete_session
+
+# Complete session with cash payment
+try:
+    transaction_id = complete_session(
+        session_id=42,
+        payment={"method": "Efectivo"}
+    )
+    print(f"Session completed. Transaction ID: {transaction_id}")
+except ValueError as e:
+    print(f"Cannot complete session: {e}")
+```
+
+```python With different payment methods
+from services.sessions import complete_session
+
+session_id = 42
+
+# Card payment
+transaction_id = complete_session(
+    session_id=session_id,
+    payment={"method": "Tarjeta"}
+)
+
+# Or bank transfer
+transaction_id = complete_session(
+    session_id=session_id,
+    payment={"method": "Transferencia"}
+)
+```
+
+```python Error handling
+from services.sessions import complete_session
+
+try:
+    transaction_id = complete_session(
+        session_id=42,
+        payment={"method": "Efectivo"}
+    )
+    print(f"Payment recorded: {transaction_id}")
+except ValueError as e:
+    if "ya tiene transacción" in str(e):
+        print("Session already has payment recorded")
+    elif "cancelada" in str(e):
+        print("Cannot complete a cancelled session")
+    elif "inválido" in str(e):
+        print("Invalid payment method")
+```
+
+</CodeGroup>
+
+<Info>
+  This function automatically calculates the artist's commission based on their configured rate or a session-specific override.
+</Info>
+
+### Commission Calculation
+
+The commission is calculated as follows:
+1. If `commission_override` is set on the session, use that rate
+2. Otherwise, use the artist's `rate_commission` from their profile
+3. Default to 0.5 (50%) if neither is set
+4. Commission amount = `session.price * commission_rate`
+
+---
+
+### cancel_session
+
+Cancels a session and optionally marks it as a no-show.
+
+<ParamField path="session_id" type="int" required>
+  ID of the session to cancel
+</ParamField>
+
+<ParamField path="as_no_show" type="bool" default={false}>
+  Whether to mark this as a client no-show
+</ParamField>
+
+**Returns:** `None`
+
+**Raises:** `ValueError` - If session not found or already completed
+
+<CodeGroup>
+
+```python Usage
+from services.sessions import cancel_session
+
+# Cancel a session
+try:
+    cancel_session(session_id=42)
+    print("Session cancelled")
+except ValueError as e:
+    print(f"Cannot cancel: {e}")
+```
+
+```python Mark as no-show
+from services.sessions import cancel_session
+
+# Client didn't show up
+try:
+    cancel_session(session_id=42, as_no_show=True)
+    print("Session marked as no-show")
+except ValueError as e:
+    if "completada" in str(e):
+        print("Cannot cancel completed session")
+```
+
+</CodeGroup>
+
+<Note>
+  When `as_no_show=True`, the function prepends "[No-show]" to the session notes to track client attendance issues.
+</Note>
+
+---
+
+### list_sessions
+
+Retrieves sessions with optional filtering.
+
+<ParamField path="filters" type="dict" required>
+  Filter criteria dictionary
+</ParamField>
+
+**Filter options:**
+- `from` (datetime): Start date filter
+- `to` (datetime): End date filter
+- `artist_id` (int): Filter by artist
+- `status` (str | list): Filter by status(es)
+
+**Returns:** `list[dict]` - List of session dictionaries
+
+Each session dictionary contains:
+- `id` (int): Session ID
+- `client_id` (int): Client ID
+- `artist_id` (int): Artist ID
+- `start` (datetime): Start time
+- `end` (datetime): End time
+- `status` (str): Current status
+- `price` (float): Session price
+- `notes` (str): Notes
+
+<CodeGroup>
+
+```python Usage
+from services.sessions import list_sessions
+from datetime import datetime, timedelta
+
+# Get all sessions for next week
+today = datetime.now()
+next_week = today + timedelta(days=7)
+
+sessions = list_sessions({
+    "from": today,
+    "to": next_week
+})
+
+for session in sessions:
+    print(f"Session {session['id']}: {session['start']} - {session['status']}")
+```
+
+```python Filter by artist
+from services.sessions import list_sessions
+
+# Get all active sessions for artist 3
+sessions = list_sessions({
+    "artist_id": 3,
+    "status": "Activa"
+})
+
+print(f"Artist has {len(sessions)} active sessions")
+```
+
+```python Multiple status filter
+from services.sessions import list_sessions
+
+# Get completed or cancelled sessions
+sessions = list_sessions({
+    "status": ["Completada", "Cancelada"]
+})
+
+print(f"Found {len(sessions)} historical sessions")
+```
+
+```python Weekly agenda view
+from services.sessions import list_sessions
+from datetime import datetime, timedelta
+
+# Get current week's schedule
+monday = datetime.now() - timedelta(days=datetime.now().weekday())
+sunday = monday + timedelta(days=6)
+
+sessions = list_sessions({
+    "from": monday,
+    "to": sunday,
+    "status": ["Activa", "En espera"]
+})
+
+for session in sessions:
+    artist = session['artist_id']
+    time = session['start'].strftime('%d/%m %H:%M')
+    print(f"{time} - Artist {artist}")
+```
+
+</CodeGroup>
+
+<Tip>
+  Results are automatically sorted by start time in ascending order, making it easy to display chronological schedules.
+</Tip>
+
+## Schedule Conflict Detection
+
+The service includes automatic overlap detection to prevent double-booking:
+
+### Overlap Rules
+
+Two sessions overlap if:
+```python
+new_start < existing_end AND new_end > existing_start
+```
+
+### Conflict Detection Behavior
+
+- Checks only for the same artist
+- Ignores cancelled sessions
+- Allows updates to the same session (using `exclude_session_id`)
+- Raises `ValueError` with message "Choque de horario" on conflict
+
+<AccordionGroup>
+  <Accordion title="Example conflict scenarios">
+    Existing session: 10:00 - 13:00
+    
+    **CONFLICT:**
+    - 09:00 - 11:00 (starts before, ends during)
+    - 11:00 - 14:00 (starts during, ends after)
+    - 09:00 - 14:00 (completely overlaps)
+    - 11:00 - 12:00 (completely inside)
+    
+    **NO CONFLICT:**
+    - 08:00 - 10:00 (ends exactly when existing starts)
+    - 13:00 - 15:00 (starts exactly when existing ends)
+    - 14:00 - 16:00 (completely after)
+  </Accordion>
+</AccordionGroup>
+
+## Typical Workflows
+
+<Tabs>
+  <Tab title="New Appointment">
+    <Steps>
+      <Step title="Check availability">
+        Call `list_sessions()` to view existing schedule for the artist.
+      </Step>
+      
+      <Step title="Create session">
+        Call `create_session()` with client, artist, time, and price.
+      </Step>
+      
+      <Step title="Handle conflicts">
+        Catch `ValueError` and prompt user to select different time.
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Reschedule">
+    <Steps>
+      <Step title="Find session">
+        Use `list_sessions()` to locate the session to reschedule.
+      </Step>
+      
+      <Step title="Update time">
+        Call `update_session()` with new start and end times.
+      </Step>
+      
+      <Step title="Verify no conflicts">
+        The function automatically validates the new time slot.
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Complete Session">
+    <Steps>
+      <Step title="Verify session details">
+        Confirm the session price and artist are correct.
+      </Step>
+      
+      <Step title="Collect payment">
+        Receive payment from client using one of the three methods.
+      </Step>
+      
+      <Step title="Mark complete">
+        Call `complete_session()` with payment method.
+      </Step>
+      
+      <Step title="Transaction created">
+        The system automatically creates a transaction record with commission calculation.
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="No-Show">
+    <Steps>
+      <Step title="Identify missed appointment">
+        Client doesn't arrive for scheduled session.
+      </Step>
+      
+      <Step title="Cancel with flag">
+        Call `cancel_session(session_id, as_no_show=True)`.
+      </Step>
+      
+      <Step title="Review client history">
+        Use the "[No-show]" note prefix to track client reliability.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Session pricing">
+    - Always set the price before completing a session
+    - If price is not set (None), it defaults to 0.0 on completion
+    - Consider including deposit information in the notes field
+  </Accordion>
+  
+  <Accordion title="Commission overrides">
+    - Use `commission_override` for special pricing arrangements
+    - Values should be between 0.0 and 1.0 (e.g., 0.6 for 60%)
+    - Override persists if session is updated
+  </Accordion>
+  
+  <Accordion title="Status transitions">
+    Valid transitions:
+    - "En espera" → "Activa" (confirmation)
+    - "Activa" → "Completada" (via `complete_session()`)
+    - Any → "Cancelada" (via `cancel_session()`)
+    
+    Invalid:
+    - "Completada" → Any other status
+    - "Cancelada" → "Completada"
+  </Accordion>
+  
+  <Accordion title="Time handling">
+    - All datetime objects should be timezone-aware
+    - Session end time must be after start time
+    - Consider buffer time between sessions for setup/cleanup
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Session Model" icon="database" href="/api/models/session">
+    TattooSession data model and schema
+  </Card>
+  <Card title="Transaction Model" icon="receipt" href="/api/models/transaction">
+    Financial transaction tracking
+  </Card>
+  <Card title="Managing Appointments" icon="book" href="/guides/managing-appointments">
+    User guide for appointment scheduling
+  </Card>
+  <Card title="Artist Model" icon="palette" href="/api/models/artist">
+    Artist data and commission rates
+  </Card>
+</CardGroup>

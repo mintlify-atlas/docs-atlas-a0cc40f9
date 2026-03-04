@@ -1,0 +1,309 @@
+---
+title: Inventory Tracking
+description: Manage supplies, track stock levels, and record inventory movements
+---
+
+The Inventory system helps you track tattoo supplies, maintain adequate stock levels, and monitor usage over time.
+
+## Inventory Overview
+
+The inventory system consists of three main areas:
+- **Dashboard** - Summary metrics and alerts
+- **Items** - Product catalog with stock levels
+- **Movements** - History of entries, exits, and adjustments
+
+<Info>
+Inventory tracking requires the **inventory** module to be enabled and proper permissions.
+</Info>
+
+## Managing Inventory Items
+
+### Viewing Items
+
+The Items page displays your complete product catalog:
+
+<Steps>
+
+### Step 1: Access Items List
+
+Navigate to **Inventario** → **Ítems** from the main menu.
+
+### Step 2: Review Item Details
+
+The table shows:
+- **SKU** - Stock keeping unit / product code
+- **Nombre** - Item name
+- **Categoría** - Product category
+- **Unidad** - Unit of measure
+- **Stock** - Current quantity (right-aligned)
+- **Mínimo** - Minimum stock threshold (right-aligned)
+- **Caduca** - "Sí" if item has expiration dates
+- **Proveedor** - Supplier name
+- **Acciones** - Quick action buttons
+
+<Warning>
+Items with stock below minimum are highlighted in red (#b91c1c) to indicate low inventory.
+</Warning>
+
+</Steps>
+
+### Filtering Items
+
+Use the toolbar to filter your inventory:
+
+#### Search
+Type in **Buscar por nombre, SKU o marca** to filter by:
+- Product name
+- SKU code
+- Category
+- Supplier name
+
+#### Category Filter
+Select from:
+- Todas (All)
+- Tintas (Inks)
+- Agujas (Needles)
+- EPP (Personal Protective Equipment)
+- Limpieza (Cleaning)
+- Aftercare
+- Consumibles (Consumables)
+
+#### State Filter
+- **Activos** - Active items only (default)
+- **Archivados** - Archived items
+- **Todos** - All items
+
+#### Expiration Filter
+- **Todos** - All items
+- **Con caducidad** - Items that expire
+- **Sin caducidad** - Items that don't expire
+
+<Tip>
+Filters combine together. For example, view only active needles with expiration dates.
+</Tip>
+
+### Item Actions
+
+Each item row has three action buttons:
+
+<AccordionGroup>
+  <Accordion title="Ver (View)" icon="eye">
+    Opens detailed view of the item with full information and history.
+  </Accordion>
+  <Accordion title="Entrada (Entry)" icon="arrow-down">
+    Records incoming stock - used when receiving new inventory or restocking.
+  </Accordion>
+  <Accordion title="Ajuste (Adjustment)" icon="arrows-rotate">
+    Makes a manual stock adjustment - used for corrections or physical counts.
+  </Accordion>
+</AccordionGroup>
+
+### Pagination
+
+Browse large inventories with pagination controls:
+- **⟵** - Previous page
+- **⟶** - Next page
+- **Página X/Y** - Current page indicator
+
+Default page size is 20 items.
+
+## Adding New Items
+
+<Steps>
+
+### Step 1: Open New Item Form
+
+Click **Nuevo ítem** in the toolbar.
+
+### Step 2: Fill Item Details
+
+#### Required Information
+- **SKU** - Unique product identifier
+- **Nombre** - Product name
+- **Categoría** - Select from dropdown
+- **Unidad** - Unit of measure (pz, ml, caja, etc.)
+
+#### Stock Control
+- **Stock** - Initial quantity
+- **Mínimo** - Low stock alert threshold
+
+#### Optional Details
+- **Caduca** - Check if item has expiration dates
+- **Proveedor** - Supplier name
+- **Activo** - Check to mark as active
+
+### Step 3: Save Item
+
+Click **Guardar** to add the item to your inventory.
+
+</Steps>
+
+## Recording Stock Movements
+
+Track all changes to inventory with movements:
+
+### Movement Types
+
+<CardGroup cols={3}>
+  <Card title="Entrada (Entry)" icon="arrow-down" color="#3FBF8A">
+    Incoming stock from suppliers or returns
+  </Card>
+  <Card title="Salida (Exit)" icon="arrow-up" color="#E57373">
+    Outgoing stock used in sessions or sold
+  </Card>
+  <Card title="Ajuste (Adjustment)" icon="arrows-rotate" color="#67C1E8">
+    Manual corrections or physical count adjustments
+  </Card>
+</CardGroup>
+
+### Recording Entries
+
+<Steps>
+
+1. From Items list, click **Entrada** on the desired item
+2. Enter quantity received
+3. Add notes about the delivery or supplier
+4. Click **Guardar**
+
+The system:
+- Adds quantity to current stock
+- Records positive movement (+50, +100, etc.)
+- Updates last modified timestamp
+- Logs your username as the operator
+
+</Steps>
+
+### Recording Adjustments
+
+<Steps>
+
+1. From Items list, click **Ajuste** on the desired item
+2. Enter adjustment amount (positive to add, negative to subtract)
+3. Add reason for adjustment
+4. Click **Guardar**
+
+Use adjustments for:
+- Physical inventory counts
+- Corrections of data entry errors
+- Accounting for damaged/expired items
+
+</Steps>
+
+<Warning>
+Adjustments bypass normal stock tracking. Always include clear notes explaining the reason.
+</Warning>
+
+## Viewing Movement History
+
+<Steps>
+
+### Step 1: Access Movements
+
+Navigate to **Inventario** → **Movimientos**.
+
+### Step 2: Filter History
+
+Use toolbar filters:
+- **Tipo** - Movement type (Todos, Entrada, Salida, Ajuste)
+- **De / a** - Date range (default: last month to today)
+
+### Step 3: Review Movements
+
+The table shows:
+- **Fecha** - Transaction date
+- **Tipo** - Entry, Exit, or Adjustment
+- **SKU** - Product code
+- **Nombre** - Product name
+- **Cantidad** - Quantity change (with +/- sign, center-aligned)
+- **Usuario** - Who performed the transaction
+
+</Steps>
+
+<Info>
+The movements page shows up to 30 recent transactions by default. Use filters to find specific records.
+</Info>
+
+## Stock Alerts
+
+The system helps prevent stockouts:
+
+### Low Stock Indicators
+
+Items are flagged when:
+```python
+if stock < minimo:
+    # Display in red
+```
+
+### Alert Locations
+- **Items table** - Red text for stock value
+- **Dashboard** - Low stock items widget (if enabled)
+- **Reports** - Inventory status summary
+
+<Tip>
+Set realistic minimum thresholds based on:
+- Usage frequency
+- Lead time for reordering
+- Shelf life/expiration
+</Tip>
+
+## Database Structure
+
+Inventory items are stored in the `products` table:
+
+```sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY,
+    sku TEXT UNIQUE,
+    name TEXT,
+    category TEXT,
+    unidad TEXT,
+    stock INTEGER,
+    min_stock INTEGER,
+    caduca BOOLEAN,
+    proveedor TEXT,
+    activo BOOLEAN,
+    created_at DATETIME,
+    updated_at DATETIME
+);
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Regular Counts" icon="calculator">
+    Perform physical inventory counts monthly and record adjustments.
+  </Card>
+  <Card title="Set Minimums" icon="gauge">
+    Configure minimum stock levels for critical supplies to avoid shortages.
+  </Card>
+  <Card title="Track Expirations" icon="calendar-xmark">
+    Enable "Caduca" for items with expiration dates and rotate stock (FIFO).
+  </Card>
+  <Card title="Organize Categories" icon="folder-tree">
+    Use consistent category names for easier filtering and reporting.
+  </Card>
+  <Card title="Document Adjustments" icon="note-sticky">
+    Always include detailed notes when making manual adjustments.
+  </Card>
+  <Card title="Review History" icon="clock-rotate-left">
+    Check movement history regularly to identify usage patterns.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Stock numbers seem incorrect">
+    Review the movement history to identify any unusual entries or adjustments. Perform a physical count and use an adjustment to correct.
+  </Accordion>
+  <Accordion title="Can't add new items">
+    Verify you have the **inventory.create** permission. Check that the SKU doesn't already exist in the database.
+  </Accordion>
+  <Accordion title="Low stock alerts not showing">
+    Ensure minimum stock thresholds are properly set. Values of 0 won't trigger alerts.
+  </Accordion>
+  <Accordion title="Movement not recorded">
+    Check that the product still exists and is marked as active. Archived items may not accept movements.
+  </Accordion>
+</AccordionGroup>

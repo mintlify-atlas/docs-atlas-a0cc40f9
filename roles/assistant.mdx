@@ -1,0 +1,454 @@
+---
+title: Assistant Role
+description: Front desk operations and master code elevation for assistants
+---
+
+The **Assistant** role is designed for front desk staff who handle day-to-day studio operations. Assistants have broad access to scheduling and client management, with master code elevation for sensitive actions.
+
+## Overview
+
+Assistants can:
+- Manage the full studio schedule for all artists
+- Handle client intake and information
+- View financial reports and transactions
+- Check inventory levels
+- **Perform sensitive actions with master code elevation**
+
+<Info>
+  Assistants have `allow` access to most daily operations, but require master code for actions that could impact studio finances or data integrity.
+</Info>
+
+## Core Capabilities
+
+### Agenda Management (Full Access)
+
+Assistants have unrestricted access to scheduling:
+
+```python
+("agenda", "view"):     {"assistant": "allow"}  # View all appointments
+("agenda", "create"):   {"assistant": "allow"}  # Book for any artist
+("agenda", "edit"):     {"assistant": "allow"}  # Modify appointments
+("agenda", "cancel"):   {"assistant": "allow"}  # Cancel appointments
+("agenda", "complete"): {"assistant": "allow"}  # Mark completed
+("agenda", "no_show"):  {"assistant": "allow"}  # Mark no-shows
+("agenda", "block"):    {"assistant": "allow"}  # Create blocks
+("agenda", "export"):   {"assistant": "allow"}  # Export schedule
+```
+
+Defined in `services/permissions.py:40-47`.
+
+**Daily workflows:**
+- Book walk-in appointments
+- Confirm upcoming appointments via phone/text
+- Reschedule appointments due to artist availability
+- Mark appointment outcomes (completed, no-show, canceled)
+- Block time for events, meetings, or closures
+- Print daily schedules for each artist
+
+### Client Database (Read + Create)
+
+Assistants can view all clients and create new records:
+
+```python
+("clients", "view"):    {"assistant": "allow"}   # View all clients
+("clients", "create"):  {"assistant": "allow"}   # Add new clients
+("clients", "edit"):    {"assistant": "locked"}  # Edit requires master code
+("clients", "delete"):  {"assistant": "locked"}  # Delete requires master code
+("clients", "consent"): {"assistant": "allow"}   # Manage consent forms
+("clients", "notes"):   {"assistant": "allow"}   # View all notes
+("clients", "export"):  {"assistant": "locked"}  # Export requires master code
+```
+
+Defined in `services/permissions.py:50-56`.
+
+**Without master code:**
+- Search and view client information
+- Create new client records during intake
+- Attach consent forms to appointments
+- View client notes from all artists
+
+**With master code:**
+- Correct errors in client information (phone, email, etc.)
+- Delete duplicate or test clients
+- Export client lists for marketing
+
+<Warning>
+  Client edits and deletions are locked to prevent accidental data corruption. Request master code from admin when corrections are needed.
+</Warning>
+
+### Staff and Portfolio (View Only)
+
+Assistants can view staff and portfolios but cannot modify:
+
+```python
+("staff", "view"):          {"assistant": "allow"}  # View all staff
+("staff", "manage_users"):  {"assistant": "deny"}   # Cannot manage users
+("staff", "toggle_active"): {"assistant": "deny"}   # Cannot disable accounts
+("portfolio", "view"):      {"assistant": "allow"}  # View portfolios
+("portfolio", "edit"):      {"assistant": "deny"}   # Cannot edit portfolios
+("portfolio", "upload"):    {"assistant": "deny"}   # Cannot upload images
+```
+
+Defined in `services/permissions.py:59-64`.
+
+**Use cases:**
+- Show portfolios to walk-in clients
+- Check artist specialties when booking
+- View artist contact information
+- Reference artist availability schedules
+
+### Financial Reports
+
+Assistants can view reports but need elevation for modifications:
+
+```python
+("reports", "view"):        {"assistant": "allow"}   # View all reports
+("reports", "export"):      {"assistant": "locked"}  # Export requires code
+("reports", "view_tx"):     {"assistant": "allow"}   # View transactions
+("reports", "refund_void"): {"assistant": "locked"}  # Refund requires code
+("reports", "cash_close"):  {"assistant": "locked"}  # Cash close requires code
+```
+
+Defined in `services/permissions.py:67-71`.
+
+**Without master code:**
+- View daily/weekly/monthly revenue reports
+- Check individual transaction details
+- Verify payment status of appointments
+
+**With master code:**
+- Process customer refunds
+- Void incorrect transactions
+- Close cash drawer at end of shift
+- Export financial data for accounting
+
+### Inventory
+
+Assistants can check stock levels but need elevation for changes:
+
+```python
+("inventory", "view"):        {"assistant": "allow"}   # View inventory
+("inventory", "create_item"): {"assistant": "locked"}  # Add item requires code
+("inventory", "edit_item"):   {"assistant": "locked"}  # Edit requires code
+("inventory", "stock_in"):    {"assistant": "locked"}  # Receive requires code
+("inventory", "stock_adj"):   {"assistant": "locked"}  # Adjust requires code
+("inventory", "cycle_count"): {"assistant": "locked"}  # Count requires code
+("inventory", "export"):      {"assistant": "locked"}  # Export requires code
+```
+
+Defined in `services/permissions.py:74-80`.
+
+**Without master code:**
+- Check if supplies are in stock
+- View reorder points and alerts
+- Look up product SKUs and pricing
+
+**With master code:**
+- Process supply deliveries
+- Adjust quantities for discrepancies
+- Add new inventory items
+- Conduct physical inventory counts
+
+### Security Settings (No Access)
+
+Assistants cannot access any security features:
+
+```python
+("security", "settings"):    {"assistant": "deny"}  # Cannot access settings
+("security", "audit"):       {"assistant": "deny"}  # Cannot view audit logs
+("security", "backup"):      {"assistant": "deny"}  # Cannot manage backups
+("security", "rotate_code"): {"assistant": "deny"}  # Cannot change master code
+```
+
+Defined in `services/permissions.py:83-86`.
+
+These features are admin-only for security reasons.
+
+## Master Code Elevation
+
+The master code system allows assistants to perform sensitive actions without requiring an admin to be present.
+
+### How It Works
+
+When an assistant attempts a `locked` action:
+
+1. System prompts for master code
+2. Assistant enters the studio's master code
+3. Code is verified against hashed value in settings
+4. If correct, assistant is **elevated** for 5 minutes
+5. During elevation window, all `locked` actions are allowed
+6. Elevation expires automatically after timeout
+
+```python
+def verify_master_code(plain: str, db: Session) -> bool:
+    row = db.query(Setting).filter(Setting.key == SETTING_KEY).one_or_none()
+    if not row or not row.value:
+        return False
+    return auth.verify_password(plain, row.value)
+
+def elevate_for(user_id: int, minutes: int = 5) -> None:
+    _elevations[user_id] = datetime.now() + timedelta(minutes=minutes)
+```
+
+Defined in `services/permissions.py:152-159` and `services/permissions.py:111-112`.
+
+### Checking Elevation Status
+
+The UI should display elevation status prominently:
+
+```python
+if is_elevated_now(user.id):
+    # Show "Elevated" badge with countdown timer
+    # Allow access to locked actions
+else:
+    # Show "Standard" badge
+    # Prompt for master code on locked actions
+```
+
+See `services/permissions.py:106-108` for elevation checking.
+
+### Actions Requiring Master Code
+
+Use this helper to check if an action needs elevation:
+
+```python
+def assistant_needs_code(resource: str, action: str) -> bool:
+    return _policy_for("assistant", resource, action) == "locked"
+```
+
+Defined in `services/permissions.py:102-103`.
+
+**Complete list of locked actions for assistants:**
+
+| Resource | Action | Why It's Locked |
+|----------|--------|----------------|
+| `clients` | `edit` | Prevent accidental data corruption |
+| `clients` | `delete` | Protect against accidental deletion |
+| `clients` | `export` | Sensitive personal information |
+| `reports` | `export` | Financial data protection |
+| `reports` | `refund_void` | Financial impact |
+| `reports` | `cash_close` | End-of-day reconciliation |
+| `inventory` | `create_item` | Affects cost tracking |
+| `inventory` | `edit_item` | Affects pricing and costs |
+| `inventory` | `stock_in` | Financial impact of deliveries |
+| `inventory` | `stock_adj` | Inventory value adjustments |
+| `inventory` | `cycle_count` | Critical accuracy operation |
+| `inventory` | `export` | Business intelligence data |
+
+### Elevation Timeout
+
+Elevation is time-limited to reduce security risk:
+
+```python
+# Default: 5 minutes
+elevate_for(user_id=user.id, minutes=5)
+
+# Check if still elevated
+if is_elevated_now(user.id):
+    # Elevation is still active
+```
+
+The timeout can be configured by admin if needed (e.g., 10 minutes during busy periods).
+
+<Info>
+  **Best practice:** Elevation automatically expires. Assistants must re-enter the code for new operations after timeout.
+</Info>
+
+### Elevation Workflow Example
+
+**Scenario:** Customer requests a refund for a canceled appointment.
+
+1. Assistant navigates to transaction in Reports
+2. Clicks "Refund" button
+3. System detects `reports.refund_void` is `locked`
+4. Modal prompts: "This action requires master code"
+5. Assistant enters master code
+6. System calls `verify_master_code(plain, db)`
+7. If valid:
+   - Calls `elevate_for(user.id, 5)`
+   - Allows refund to proceed
+   - Shows "Elevated" badge with 5-minute timer
+8. Assistant can process additional refunds within 5 minutes
+9. After 5 minutes, elevation expires automatically
+
+### Security Considerations
+
+<Warning>
+  **Protect the master code:** Only share it with trusted assistants through secure channels (never email or text).
+</Warning>
+
+**Guidelines for assistants:**
+
+- Never share the master code with clients or unauthorized staff
+- Never write down the code where clients can see it
+- Don't remain elevated longer than necessary
+- Log out when leaving the desk unattended
+- Report suspected code compromise to admin immediately
+
+**Guidelines for admins:**
+
+- Rotate master code every 90 days
+- Change code immediately when assistant leaves
+- Monitor audit logs for elevation patterns
+- Investigate suspicious elevated actions
+
+## What Assistants Cannot Do
+
+Understanding limitations is important:
+
+### Never Allowed (Even with Master Code)
+
+<AccordionGroup>
+  <Accordion title="User Management">
+    ```python
+    ("staff", "manage_users"):  {"assistant": "deny"}
+    ("staff", "toggle_active"): {"assistant": "deny"}
+    ```
+    
+    Assistants cannot create, modify, or deactivate user accounts. This is admin-only to prevent privilege escalation.
+  </Accordion>
+  
+  <Accordion title="Portfolio Management">
+    ```python
+    ("portfolio", "edit"):   {"assistant": "deny"}
+    ("portfolio", "upload"): {"assistant": "deny"}
+    ```
+    
+    Only artists (and admins) can manage their portfolios. Assistants can view but not modify.
+  </Accordion>
+  
+  <Accordion title="Security Settings">
+    ```python
+    ("security", "settings"):    {"assistant": "deny"}
+    ("security", "audit"):       {"assistant": "deny"}
+    ("security", "backup"):      {"assistant": "deny"}
+    ("security", "rotate_code"): {"assistant": "deny"}
+    ```
+    
+    All security features are admin-only. Assistants cannot view audit logs, change settings, or rotate the master code.
+  </Accordion>
+</AccordionGroup>
+
+## Daily Workflows
+
+### Opening the Studio
+
+1. Log in with assistant credentials
+2. Review today's schedule for all artists
+3. Check for appointment confirmations needed
+4. Review any notes from previous shift
+5. Verify inventory of commonly used supplies
+6. Prepare consent forms for first appointments
+
+### Booking a Walk-In
+
+1. Search for existing client or create new:
+   - Client name, phone, email
+   - No master code needed for creation
+2. Check artist availability in agenda
+3. Create new appointment:
+   - Select artist, date, time
+   - Choose service type and duration
+   - Add any special notes
+4. Have client sign consent form
+5. Collect deposit if required
+
+### Handling a Refund Request
+
+1. Navigate to Reports > Transactions
+2. Find the payment transaction
+3. Click "Refund" button
+4. System prompts for master code
+5. Enter master code (elevates for 5 minutes)
+6. Complete refund form:
+   - Refund amount (full or partial)
+   - Reason for refund
+   - Refund method (original payment method)
+7. Confirm refund
+8. Print receipt for customer
+
+### Closing Cash Drawer
+
+1. Navigate to Reports > Cash Close
+2. System prompts for master code
+3. Enter master code (elevates for 5 minutes)
+4. Review expected cash amount
+5. Count physical cash in drawer
+6. Enter actual cash amount
+7. System calculates overage/shortage
+8. Add notes if there's a discrepancy
+9. Submit cash close report
+10. Print report for manager review
+
+### Processing Supply Delivery
+
+1. Navigate to Inventory
+2. Click "Receive Stock"
+3. System prompts for master code
+4. Enter master code (elevates for 5 minutes)
+5. Scan or enter items received:
+   - Product SKU or name
+   - Quantity received
+   - Lot/batch number if applicable
+6. Verify against packing slip
+7. Submit stock receipt
+8. File packing slip for accounting
+
+## Tips for Assistants
+
+<AccordionGroup>
+  <Accordion title="Minimize Elevation Time">
+    Plan your elevated tasks in batches:
+    - Process all refunds together
+    - Adjust multiple inventory items in one session
+    - Complete cash close without interruption
+    
+    This minimizes the time you're elevated and improves security.
+  </Accordion>
+  
+  <Accordion title="Double-Check Client Edits">
+    Since editing clients requires elevation, always verify information before saving:
+    - Confirm spelling of names
+    - Verify phone and email format
+    - Check that you're editing the correct client
+    
+    This prevents needing to re-elevate for corrections.
+  </Accordion>
+  
+  <Accordion title="Use Notes Liberally">
+    You have full access to client and appointment notes without elevation:
+    - Document client preferences
+    - Note special instructions for artists
+    - Record phone confirmations
+    - Track appointment changes
+    
+    Good notes improve client service and protect the studio legally.
+  </Accordion>
+  
+  <Accordion title="Know When to Ask Admin">
+    Some situations require admin judgment:
+    - Large refund requests (over studio policy)
+    - Suspected fraud or abuse
+    - System errors or unusual behavior
+    - Questions about access or permissions
+    
+    Don't hesitate to escalate when appropriate.
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Permissions Matrix" icon="table" href="/roles/permissions">
+    View all assistant permissions including locked actions
+  </Card>
+  <Card title="Admin Role" icon="shield-halved" href="/roles/admin">
+    Learn about admin capabilities and master code management
+  </Card>
+  <Card title="Artist Role" icon="palette" href="/roles/artist">
+    Understand artist limitations and workflows
+  </Card>
+  <Card title="Agenda Management" icon="calendar" href="/features/agenda">
+    Deep dive into scheduling features
+  </Card>
+</CardGroup>

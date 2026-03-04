@@ -1,0 +1,103 @@
+---
+title: First-Time Setup
+description: Complete the initial configuration of Tattoo Studio Manager
+---
+
+When you first launch Tattoo Studio Manager, you'll be guided through a two-step setup wizard to configure your studio and create the administrator account.
+
+## Setup Wizard Overview
+
+The first-run wizard consists of two pages:
+1. **Studio Information** - Your tattoo studio's basic details
+2. **Administrator Account** - The first user account with full permissions
+
+<Steps>
+
+### Step 1: Studio Information
+
+Provide your tattoo studio's basic information:
+
+<AccordionGroup>
+  <Accordion title="Required Fields">
+    - **Nombre del estudio** (Studio Name) - The name of your tattoo studio
+  </Accordion>
+
+  <Accordion title="Optional Fields">
+    - **Teléfono** (Phone) - Studio contact phone number
+    - **Ciudad** (City) - Studio location
+    - **Logo** - Click "Elegir logo…" to upload your studio's logo
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+The studio logo supports PNG, JPG, JPEG, BMP, and GIF formats. It will be displayed in reports and client-facing documents.
+</Info>
+
+### Step 2: Administrator Account
+
+Create the first user account with administrator privileges:
+
+#### Required Fields
+
+- **Usuario** (Username) - The login username (must be unique)
+- **Contraseña** (Password) - Must be at least 6 characters
+- **Confirmar contraseña** (Confirm Password) - Must match the password
+
+#### Optional Fields
+
+- **Nombre completo** (Full Name) - The administrator's full name
+
+<Warning>
+The password must be at least 6 characters long. Choose a strong password to protect your studio's data.
+</Warning>
+
+### Step 3: Complete Setup
+
+Click **Finalizar** (Finish) to complete the setup. The system will:
+
+1. Save your studio information to `settings.json`
+2. Copy your logo to the uploads directory (if provided)
+3. Create the administrator user account
+4. Open the main application
+
+</Steps>
+
+## After Setup
+
+Once setup is complete, you can:
+
+- Log in with your administrator credentials
+- Add more users in the Staff section
+- Configure additional settings
+- Begin adding clients and appointments
+
+<Tip>
+You can update your studio information later in the Settings section.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Setup wizard closes unexpectedly">
+    Make sure all required fields are filled in. The studio name and administrator credentials are mandatory.
+  </Accordion>
+
+  <Accordion title="Logo upload fails">
+    Verify the image file exists and is in a supported format (PNG, JPG, JPEG, BMP, GIF). Try using a smaller file size if the image is very large.
+  </Accordion>
+
+  <Accordion title="Username already exists error">
+    This error appears if you try to create a user with an existing username. Choose a different username and try again.
+  </Accordion>
+</AccordionGroup>
+
+## Data Storage
+
+Your studio configuration is stored in:
+- **Studio details**: `settings.json` in the data directory
+- **Logo**: `uploads/studio/logo.[ext]` relative to the database
+- **User accounts**: SQLite database in the data directory
+
+<Check>
+Your data is stored locally on your computer, giving you complete control and privacy.
+</Check>

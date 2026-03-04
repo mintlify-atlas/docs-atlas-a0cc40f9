@@ -1,0 +1,558 @@
+---
+title: Quick Start
+description: Get started with Tattoo Studio Manager in minutes
+---
+
+## Overview
+
+This guide will walk you through launching the application, logging in for the first time, and exploring the main interface of Tattoo Studio Manager.
+
+<Note>
+Before proceeding, ensure you have [installed the application](/installation) and completed the initial setup wizard.
+</Note>
+
+## Launching the Application
+
+<Steps>
+  <Step title="Activate Virtual Environment">
+    First, activate your Python virtual environment:
+
+    <CodeGroup>
+    ```bash Windows
+    cd C:\path\to\TattoStudio
+    .venv\Scripts\activate.bat
+    ```
+
+    ```bash macOS/Linux
+    cd /path/to/TattoStudio
+    source .venv/bin/activate
+    ```
+    </CodeGroup>
+
+    <Accordion title="Using the start.bat Shortcut (Windows)">
+    On Windows, you can use the included batch file:
+
+    ```batch start.bat
+    @echo off
+    cd /d "%~dp0"
+    call .venv\Scripts\activate.bat
+    python main.py
+    pause
+    ```
+
+    Simply double-click `start.bat` in the project folder.
+    </Accordion>
+  </Step>
+
+  <Step title="Run the Application">
+    Launch the application:
+
+    ```bash
+    python main.py
+    ```
+
+    The application loads in this order:
+    1. Initializes the theme (light/dark mode from settings)
+    2. Verifies database connection
+    3. Opens the login dialog
+    4. Loads the main window after successful authentication
+  </Step>
+</Steps>
+
+## First Login
+
+When the application starts, you'll see the **InkLink OS** login screen.
+
+<Frame>
+  <img src="/images/login-screen.png" alt="Login Screen" />
+</Frame>
+
+### Default Test Accounts
+
+If you seeded the database with sample data, you can use these test accounts:
+
+<CardGroup cols={3}>
+  <Card title="Administrator" icon="user-crown">
+    **Username:** admin  
+    **Password:** admin123
+    
+    Full system access
+  </Card>
+  <Card title="Assistant" icon="user-tie">
+    **Username:** assistant  
+    **Password:** assistant123
+    
+    Studio operations access
+  </Card>
+  <Card title="Artist" icon="paintbrush">
+    **Username:** jesus  
+    **Password:** tattoo123
+    
+    Artist-specific access
+  </Card>
+</CardGroup>
+
+### Authentication Process
+
+The login system uses secure bcrypt password hashing:
+
+```python services/auth.py
+def authenticate(db: Session, username: str, password: str) -> Optional[Dict]:
+    """Authenticates user and returns profile if credentials are valid."""
+    u = get_user_by_username(db, username)
+    if not u or not u.is_active:
+        return None
+    if not verify_password(password, u.password_hash):
+        return None
+
+    # Update last login timestamp
+    u.last_login = datetime.utcnow()
+    db.commit()
+
+    return {
+        "id": u.id,
+        "username": u.username,
+        "role": u.role,
+        "artist_id": u.artist_id,
+    }
+```
+
+<Warning>
+If you don't have any users in the database, the **First Run Wizard** will automatically appear to guide you through creating an admin account.
+</Warning>
+
+## Understanding the Main Interface
+
+After logging in, you'll see the main window with three main areas:
+
+### 1. Top Navigation Bar
+
+The top bar contains:
+
+- **Studio Logo & Name** (left): Your configured branding
+- **Navigation Pills** (center): Main sections of the app
+- **User Button** (right): Access to settings and logout
+
+```python ui/main_window.py
+self.btn_studio  = self._pill("Estudio")    # Studio dashboard
+self.btn_sched   = self._pill("Agenda")     # Appointment scheduler  
+self.btn_clients = self._pill("Clientes")   # Client management
+self.btn_staff   = self._pill("Staff")      # Staff management
+self.btn_reports = self._pill("Reportes")   # Reports & analytics
+self.btn_forms   = self._pill("Inventario") # Inventory (admin only)
+```
+
+### 2. Main Content Area
+
+The center area displays the current page:
+
+<Tabs>
+  <Tab title="Estudio (Dashboard)">
+    The **Studio** page is your home screen with quick actions:
+
+    - Create new appointment
+    - Add new client
+    - Open cash register
+    - View portfolios
+    - Studio statistics overview
+
+    ```python ui/main_window.py
+    self.studio_page = StudioPage(
+        studio_name=self.studio_name,
+        logo_path=self._studio_logo_override,
+    )
+    ```
+  </Tab>
+
+  <Tab title="Agenda (Schedule)">
+    The **Agenda** page manages appointments:
+
+    - Day/week/month calendar views
+    - Create and edit appointments
+    - Assign artists to sessions
+    - Track appointment status (Active, Completed, Waiting)
+    - Time slot configuration
+
+    Configure schedule hours in Settings:
+    ```json settings.json
+    {
+      "agenda_hours": {
+        "start": "08:00",
+        "end": "21:30",
+        "step": 30  // minutes per time slot
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Clientes (Clients)">
+    The **Clients** page handles customer management:
+
+    - Search and filter clients
+    - Add new clients with contact info
+    - View client history and sessions
+    - Track preferences and preferred artist
+    - Manage client portfolios
+
+    Client model includes:
+    ```python data/models/client.py
+    name           # Full name
+    phone          # Contact number
+    email          # Email address
+    instagram      # Social media handle
+    preferred_artist_id  # Favorite artist
+    is_active      # Active status
+    ```
+  </Tab>
+
+  <Tab title="Staff (Team)">
+    The **Staff** page manages your team:
+
+    - View all artists and assistants
+    - Add new staff members
+    - Set commission rates for artists
+    - Link user accounts to staff profiles
+    - Track artist performance
+
+    ```python data/models/artist.py
+    name              # Artist name
+    rate_commission   # Commission percentage (0.0-1.0)
+    active            # Active status
+    ```
+  </Tab>
+
+  <Tab title="Reportes (Reports)">
+    The **Reports** page provides analytics:
+
+    - Sales reports by date range
+    - Artist performance metrics
+    - Revenue by payment method
+    - Client statistics
+    - Session completion rates
+  </Tab>
+
+  <Tab title="Inventario (Inventory)">
+    The **Inventory** section (admin only):
+
+    - Product catalog
+    - Stock levels and alerts
+    - Product entries and adjustments
+    - Movement history
+    - Low stock warnings
+
+    ```python data/models/product.py
+    sku        # Product code
+    name       # Product name
+    category   # Product category
+    stock      # Current quantity
+    min_stock  # Reorder threshold
+    cost       # Unit cost
+    ```
+  </Tab>
+</Tabs>
+
+### 3. Status Bar
+
+The bottom status bar displays:
+
+- Application version
+- Last backup timestamp
+- System notifications
+
+```python ui/main_window.py
+self.statusBar().showMessage(f"Ver. 1.0.1 | Último respaldo {last}")
+```
+
+## Role-Based Access Control (RBAC)
+
+The application implements role-based access to protect sensitive features:
+
+<Tabs>
+  <Tab title="Admin">
+    **Full System Access**
+
+    Administrators can:
+    - Access all pages and features
+    - Manage inventory
+    - Create and modify staff accounts
+    - Configure system settings
+    - Create/restore backups
+    - View all reports
+
+    ```python ui/main_window.py
+    if role == "admin":
+        allowed |= {
+            self.idx_clientes, self.idx_cliente_det,
+            self.idx_staff, self.idx_staff_det,
+            self.idx_inventory, self.idx_inv_items,
+            # ... all indices
+        }
+    ```
+  </Tab>
+
+  <Tab title="Assistant">
+    **Studio Operations Access**
+
+    Assistants can:
+    - Schedule appointments
+    - Manage clients (create, view, edit)
+    - View staff profiles
+    - Access reports
+    - Use cash register
+
+    Assistants **cannot**:
+    - Manage inventory
+    - Create/edit staff accounts
+    - Access system settings
+  </Tab>
+
+  <Tab title="Artist">
+    **Limited Personal Access**
+
+    Artists can:
+    - View their own schedule
+    - View client information
+    - See basic reports
+    - View staff directory
+
+    Artists **cannot**:
+    - Modify schedules
+    - Create/edit clients
+    - Access inventory
+    - View financial reports
+    - Manage staff
+
+    ```python ui/main_window.py
+    elif role == "artist":
+        allowed |= {
+            self.idx_clientes, self.idx_cliente_det,
+            self.idx_staff, self.idx_staff_det,
+        }
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+If a user attempts to access a restricted page, they're automatically redirected to the Studio dashboard with a status message.
+</Note>
+
+## User Panel
+
+Click your username in the top-right corner to open the user panel:
+
+<CardGroup cols={2}>
+  <Card title="Theme Toggle" icon="moon">
+    Switch between light and dark mode
+  </Card>
+  <Card title="Settings" icon="gear">
+    Configure studio info, schedule hours, and backups
+  </Card>
+  <Card title="About" icon="circle-info">
+    View application version and information
+  </Card>
+  <Card title="Logout" icon="right-from-bracket">
+    Sign out and return to login screen
+  </Card>
+</CardGroup>
+
+## Common Tasks
+
+<AccordionGroup>
+  <Accordion title="Create a New Client">
+    1. Navigate to **Clientes** (Clients)
+    2. Click the **+ Nuevo Cliente** button
+    3. Fill in client information:
+       - Name (required)
+       - Phone and email
+       - Instagram handle
+       - Preferred artist
+    4. Click **Guardar** (Save)
+
+    ```python ui/pages/new_client.py
+    # Client dialog opens as a modal popup
+    dlg = NewClientDialog(self)
+    dlg.exec_()
+    ```
+  </Accordion>
+
+  <Accordion title="Schedule an Appointment">
+    1. Navigate to **Agenda** (Schedule)
+    2. Select a date and time slot
+    3. Click to create a new session
+    4. Fill in appointment details:
+       - Client (search or create new)
+       - Artist
+       - Start and end time
+       - Price
+       - Notes
+    5. Click **Guardar** (Save)
+
+    The session is created with status "Activa" (Active).
+  </Accordion>
+
+  <Accordion title="Process a Payment">
+    1. Click **Caja** (Cash Register) from the Studio dashboard
+    2. Select a completed session
+    3. Enter payment details:
+       - Amount
+       - Payment method (Cash, Card, Transfer)
+       - Date
+    4. Confirm transaction
+
+    ```python data/models/transaction.py
+    session_id    # Linked tattoo session
+    artist_id     # Artist who performed work
+    amount        # Payment amount
+    method        # Payment method
+    date          # Transaction date
+    ```
+  </Accordion>
+
+  <Accordion title="Switch User Accounts">
+    1. Click your username (top-right)
+    2. Click **Cerrar sesión** (Logout)
+    3. The login screen appears
+    4. Enter different credentials
+
+    The application maintains session state and applies role-based restrictions automatically.
+  </Accordion>
+
+  <Accordion title="Change Application Theme">
+    1. Click your username (top-right)
+    2. Toggle the **Modo oscuro** (Dark mode) switch
+
+    Theme preference is saved to `settings.json` and persists across sessions:
+
+    ```python main.py
+    def load_theme_preference() -> str:
+        if SETTINGS.exists():
+            try:
+                return json.loads(SETTINGS.read_text()).get("theme", "light")
+            except Exception:
+                pass
+        return "light"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Keyboard Shortcuts
+
+<CardGroup cols={2}>
+  <Card title="Login Screen" icon="keyboard">
+    - **Enter**: Submit login form
+    - **Esc**: Close application
+  </Card>
+  <Card title="Main Window" icon="keyboard">
+    - **Alt + Q**: Quick search clients
+    - **Ctrl + N**: New appointment
+    - **Ctrl + ,**: Open settings
+  </Card>
+</CardGroup>
+
+## Data Management
+
+### Automatic Backups
+
+The application automatically creates database backups:
+
+```python services/backups.py
+def create_backup_if_needed():
+    """Creates backup if more than 24 hours since last backup."""
+    # Checks last backup time
+    # Creates timestamped backup: backup_YYYYMMDD_HHMMSS.db
+    # Stores in backups/ directory
+```
+
+Backups are stored in the `backups/` folder with timestamps:
+- `backup_20260304_091530.db`
+- `backup_20260303_184522.db`
+
+<Note>
+Backups are created automatically on application start if more than 24 hours have passed since the last backup.
+</Note>
+
+### Manual Backup
+
+To create a manual backup:
+
+1. Click your username → **Ajustes** (Settings)
+2. Go to the **Respaldos** (Backups) tab
+3. Click **Crear respaldo ahora** (Create backup now)
+
+### Restore from Backup
+
+1. Open Settings → Backups tab
+2. Select a backup from the list
+3. Click **Restaurar respaldo seleccionado** (Restore selected backup)
+4. Confirm the restoration
+5. **Restart the application** to apply changes
+
+<Warning>
+Restoring a backup will replace your current database. The current database is automatically backed up before restoration, but you should always verify your backups are working properly.
+</Warning>
+
+## Next Steps
+
+Now that you're familiar with the basics, explore more advanced features:
+
+<CardGroup cols={2}>
+  <Card title="Client Onboarding" icon="user-plus" href="/guides/client-onboarding">
+    Learn how to register new clients with consent forms
+  </Card>
+  <Card title="Inventory Management" icon="boxes-stacked" href="/features/inventory-management">
+    Set up products and track stock levels
+  </Card>
+  <Card title="Financial Reports" icon="chart-line" href="/guides/financial-reports">
+    Generate insights from your studio data
+  </Card>
+  <Card title="Portfolio Management" icon="palette" href="/guides/portfolio-management">
+    Organize and showcase artist work
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Can't Log In">
+    - Verify credentials are correct (usernames are case-sensitive)
+    - Check if account is marked as active
+    - Try resetting password through database (if admin access available)
+    - Check console for error messages
+  </Accordion>
+
+  <Accordion title="Missing Menu Items">
+    This is normal behavior based on your role:
+    - **Artists** don't see Inventory
+    - **Assistants** have limited access
+    - Only **admins** see all features
+
+    Contact your administrator to request role changes.
+  </Accordion>
+
+  <Accordion title="Database Locked Error">
+    If you see "database is locked":
+    1. Close all instances of the application
+    2. Wait 30 seconds
+    3. Relaunch the application
+
+    SQLite allows only one write operation at a time.
+  </Accordion>
+
+  <Accordion title="Theme Not Saving">
+    If your theme preference doesn't persist:
+    1. Check file permissions on `settings.json`
+    2. Verify the file isn't read-only
+    3. Check console for JSON parsing errors
+
+    Delete `settings.json` to reset to defaults (will clear all settings).
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+If you encounter issues:
+
+1. Check the application logs in the console
+2. Review the [Installation Guide](/installation) for setup issues
+3. Check the [First-Time Setup Guide](/guides/first-time-setup) for configuration help
+4. Contact your system administrator

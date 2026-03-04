@@ -1,0 +1,258 @@
+---
+title: 'Client Model'
+description: 'Client data model with personal information, health records, and consent management'
+---
+
+## Overview
+
+The `Client` model represents a tattoo studio client with comprehensive personal information, health records, emergency contacts, consent tracking, and preferences.
+
+## Model Definition
+
+```python
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
+
+class Client(Base):
+    __tablename__ = "clients"
+```
+
+## Fields
+
+### Primary Key
+
+<ResponseField name="id" type="Integer" required>
+  Unique identifier for the client
+</ResponseField>
+
+### Basic Information
+
+<ResponseField name="name" type="String(120)" required>
+  Client's full name
+</ResponseField>
+
+<ResponseField name="phone" type="String(40)">
+  Contact phone number
+</ResponseField>
+
+<ResponseField name="email" type="String(120)">
+  Email address
+</ResponseField>
+
+<ResponseField name="notes" type="Text">
+  General notes about the client
+</ResponseField>
+
+<ResponseField name="is_active" type="Boolean" default="true">
+  Whether the client is active in the system
+</ResponseField>
+
+<ResponseField name="created_at" type="DateTime" default="CURRENT_TIMESTAMP">
+  Timestamp when the client record was created
+</ResponseField>
+
+### Personal Details
+
+<ResponseField name="instagram" type="Text">
+  Client's Instagram handle
+</ResponseField>
+
+<ResponseField name="city" type="Text">
+  City of residence
+</ResponseField>
+
+<ResponseField name="state" type="Text">
+  State or province
+</ResponseField>
+
+<ResponseField name="gender" type="Text">
+  Client's gender
+</ResponseField>
+
+<ResponseField name="birthdate" type="Date">
+  Date of birth
+</ResponseField>
+
+### Consent Fields
+
+<ResponseField name="consent_info" type="Boolean">
+  Consent to receive information
+</ResponseField>
+
+<ResponseField name="consent_image" type="Boolean">
+  Consent for image usage
+</ResponseField>
+
+<ResponseField name="consent_data" type="Boolean">
+  Consent for data processing
+</ResponseField>
+
+### Emergency Contact
+
+<ResponseField name="emergency_name" type="Text">
+  Emergency contact's full name
+</ResponseField>
+
+<ResponseField name="emergency_relation" type="Text">
+  Relationship to the emergency contact
+</ResponseField>
+
+<ResponseField name="emergency_phone" type="Text">
+  Emergency contact's phone number
+</ResponseField>
+
+### Preferences
+
+<ResponseField name="preferred_artist_id" type="Integer">
+  Foreign key reference to the client's preferred artist (artists.id)
+</ResponseField>
+
+### Health Information
+
+<ResponseField name="health_allergies" type="Boolean">
+  Client has allergies
+</ResponseField>
+
+<ResponseField name="health_diabetes" type="Boolean">
+  Client has diabetes
+</ResponseField>
+
+<ResponseField name="health_coagulation" type="Boolean">
+  Client has coagulation issues
+</ResponseField>
+
+<ResponseField name="health_epilepsy" type="Boolean">
+  Client has epilepsy
+</ResponseField>
+
+<ResponseField name="health_cardiac" type="Boolean">
+  Client has cardiac conditions
+</ResponseField>
+
+<ResponseField name="health_anticoagulants" type="Boolean">
+  Client takes anticoagulants
+</ResponseField>
+
+<ResponseField name="health_preg_lact" type="Boolean">
+  Client is pregnant or lactating
+</ResponseField>
+
+<ResponseField name="health_substances" type="Boolean">
+  Client uses substances that may affect tattooing
+</ResponseField>
+
+<ResponseField name="health_derm" type="Boolean">
+  Client has dermatological conditions
+</ResponseField>
+
+<ResponseField name="health_obs" type="Text">
+  Additional health observations or notes
+</ResponseField>
+
+## Relationships
+
+<ResponseField name="preferred_artist" type="Artist">
+  The Artist object for the client's preferred artist
+  
+  **Foreign Key:** `preferred_artist_id` → `artists.id`
+  
+  **Backref:** `preferred_clients` on Artist model
+</ResponseField>
+
+<ResponseField name="sessions" type="List[TattooSession]">
+  List of all tattoo sessions for this client
+  
+  **Relationship:** One-to-Many with TattooSession
+  
+  **Cascade:** `all, delete-orphan` - sessions are deleted when client is deleted
+  
+  **Back Populates:** `client` on TattooSession model
+</ResponseField>
+
+## Database Schema
+
+```sql
+CREATE TABLE clients (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    phone VARCHAR(40),
+    email VARCHAR(120),
+    notes TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Personal details
+    instagram TEXT,
+    city TEXT,
+    state TEXT,
+    gender TEXT,
+    birthdate DATE,
+    
+    -- Consent
+    consent_info BOOLEAN,
+    consent_image BOOLEAN,
+    consent_data BOOLEAN,
+    
+    -- Emergency contact
+    emergency_name TEXT,
+    emergency_relation TEXT,
+    emergency_phone TEXT,
+    
+    -- Preferences
+    preferred_artist_id INTEGER,
+    FOREIGN KEY (preferred_artist_id) REFERENCES artists(id),
+    
+    -- Health information
+    health_allergies BOOLEAN,
+    health_diabetes BOOLEAN,
+    health_coagulation BOOLEAN,
+    health_epilepsy BOOLEAN,
+    health_cardiac BOOLEAN,
+    health_anticoagulants BOOLEAN,
+    health_preg_lact BOOLEAN,
+    health_substances BOOLEAN,
+    health_derm BOOLEAN,
+    health_obs TEXT
+);
+```
+
+## Usage Example
+
+```python
+from data.models.client import Client
+from sqlalchemy.orm import Session
+
+# Create a new client
+new_client = Client(
+    name="John Doe",
+    phone="555-0123",
+    email="john@example.com",
+    city="New York",
+    state="NY",
+    birthdate="1990-05-15",
+    consent_info=True,
+    consent_image=True,
+    consent_data=True,
+    health_allergies=False,
+    health_diabetes=False,
+    preferred_artist_id=1
+)
+
+db.add(new_client)
+db.commit()
+
+# Query client with sessions
+client = db.query(Client).filter(Client.id == 1).first()
+print(f"Client: {client.name}")
+print(f"Total sessions: {len(client.sessions)}")
+print(f"Preferred artist: {client.preferred_artist.name}")
+```
+
+## Notes
+
+- The `is_active` field allows soft-deletion of client records
+- All health fields are optional booleans for quick screening
+- The `health_obs` field provides space for detailed health notes
+- Emergency contact information is stored separately for quick access
+- The relationship with `sessions` includes cascade delete to maintain referential integrity
+- Location in codebase: `data/models/client.py:11`

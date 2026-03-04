@@ -1,0 +1,224 @@
+---
+title: Database Session Management
+description: SQLAlchemy session factory and database connection configuration for Tattoo Studio Manager
+---
+
+## Overview
+
+The session module (`data/db/session.py`) provides database connection management and session handling using SQLAlchemy. It automatically resolves the database path based on the runtime environment (development vs. production) and ensures proper initialization.
+
+## Database Path Resolution
+
+The database path is dynamically computed using the `_compute_db_path()` function:
+
+### Environment-Based Path Logic
+
+1. **Environment Variable Override**: If `DB_PATH` is set, it takes precedence
+2. **Production (PyInstaller)**: `%APPDATA%\InkLinkOS\inklink.db` (Windows)
+3. **Development**: `dev.db` in project root
+
+```python
+import os
+os.environ["DB_PATH"] = "/path/to/custom/database.db"
+```
+
+### Source Reference
+
+See `data/db/session.py:13-46` for the complete implementation.
+
+## Database Initialization
+
+The module automatically ensures the database exists before creating connections:
+
+```python
+def _ensure_db_exists():
+    """
+    If the database file doesn't exist:
+    1. Attempts to copy from template (data/dev.db)
+    2. Creates all tables from Base.metadata
+    """
+```
+
+This happens automatically on import at `data/db/session.py:97`.
+
+## Core Components
+
+### Engine Configuration
+
+```python
+from data.db.session import engine
+
+# SQLite engine with SQLAlchemy 2.0 API
+engine = create_engine(
+    f"sqlite:///{DB_PATH}",
+    future=True,
+    echo=False
+)
+```
+
+Source: `data/db/session.py:109`
+
+<Info>
+  **Foreign Keys Enabled**: SQLite foreign key constraints are enabled via a connection event listener at `data/db/session.py:113-117`.
+</Info>
+
+### Session Factory
+
+```python
+from data.db.session import SessionLocal
+
+# Scoped session factory
+SessionLocal = scoped_session(
+    sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False
+    )
+)
+```
+
+Source: `data/db/session.py:121-123`
+
+## Usage Examples
+
+### Basic Session Usage
+
+```python
+from data.db.session import SessionLocal
+from data.models.client import Client
+
+# Using context manager (recommended)
+with SessionLocal() as db:
+    clients = db.query(Client).all()
+    # Session automatically closed and rolled back on exception
+```
+
+### Transaction Management
+
+```python
+from data.db.session import SessionLocal
+
+with SessionLocal() as db:
+    db.begin()
+    try:
+        # Create new client
+        client = Client(
+            name="John Doe",
+            phone="555-1234",
+            email="john@example.com"
+        )
+        db.add(client)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+```
+
+### Initialize Database Schema
+
+```python
+from data.db.session import init_db
+
+# Create all tables if they don't exist
+init_db()
+```
+
+Source: `data/db/session.py:125-129`
+
+<Warning>
+  `init_db()` only creates missing tables. It does not alter existing schemas. Use migration scripts for schema changes.
+</Warning>
+
+## Utility Functions
+
+### Get Database Path
+
+```python
+from data.db.session import get_db_path
+
+db_path = get_db_path()
+print(f"Database location: {db_path}")
+# Output: Database location: /path/to/dev.db
+```
+
+Source: `data/db/session.py:131-135`
+
+### Get Data Root Directory
+
+```python
+from data.db.session import get_data_root
+
+data_dir = get_data_root()
+print(f"Data directory: {data_dir}")
+# Output: Data directory: /path/to/project
+```
+
+Source: `data/db/session.py:138-145`
+
+<Info>
+  The data root is the parent directory of the database file. In production, this is typically `%APPDATA%\InkLinkOS`.
+</Info>
+
+## Configuration Variables
+
+| Variable | Type | Description | Source |
+|----------|------|-------------|--------|
+| `DB_PATH` | `str` | Resolved database file path | `session.py:50` |
+| `DATA_DIR` | `Path` | Base directory for user data | `session.py:102-105` |
+| `engine` | `Engine` | SQLAlchemy database engine | `session.py:109` |
+| `SessionLocal` | `scoped_session` | Thread-safe session factory | `session.py:121-123` |
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Use Context Managers">
+    Always use `with SessionLocal() as db:` to ensure sessions are properly closed and resources are released.
+
+    ```python
+    # Good
+    with SessionLocal() as db:
+        results = db.query(Client).all()
+
+    # Avoid
+    db = SessionLocal()
+    results = db.query(Client).all()
+    db.close()  # Easy to forget!
+    ```
+  </Accordion>
+
+  <Accordion title="Explicit Transaction Control">
+    Use explicit `begin()` and `commit()` for multi-operation transactions:
+
+    ```python
+    with SessionLocal() as db:
+        db.begin()
+        try:
+            db.add(client)
+            db.add(session)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+    ```
+  </Accordion>
+
+  <Accordion title="Don't Use expire_on_commit=False Carelessly">
+    The session is configured with `expire_on_commit=False`, which means objects remain accessible after commit. Be aware this can lead to stale data if you reuse objects across multiple transactions.
+
+    ```python
+    with SessionLocal() as db:
+        client = db.query(Client).first()
+        db.commit()
+        # client object is still accessible
+        print(client.name)  # Works, but may be stale
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Modules
+
+- [Migrations](/api/database/migrations) - Database schema migration scripts
+- [Client Model](/api/models/client) - Client data model
+- [Session Model](/api/models/session) - Tattoo session data model
+- [Transaction Model](/api/models/transaction) - Payment transaction model

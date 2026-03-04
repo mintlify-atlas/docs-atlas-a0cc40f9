@@ -1,0 +1,367 @@
+---
+title: Client Management
+description: Complete client database with profiles, contact information, health screening, and consent management
+---
+
+## Overview
+
+The Client Management system is the foundation of your tattoo studio operations. It provides a comprehensive database to store and manage all client information, from basic contact details to detailed health records and legal consent forms.
+
+## Key Features
+
+### Client Profiles
+
+Each client record includes:
+
+- **Basic Information**
+  - Full name and contact details (phone, email, Instagram)
+  - Location (city and state)
+  - Gender and date of birth
+  - Profile photo (with custom avatar upload)
+  - Active/archived status
+
+- **Professional Preferences**
+  - Preferred artist assignment
+  - Preferred tattoo styles
+  - Areas of interest
+  - How they discovered your studio
+
+- **Internal Notes**
+  - Freeform notes field for staff observations
+  - Automatic timestamps for record creation
+  - Permission-based access control
+
+### Health Screening
+
+Comprehensive health questionnaire tracking:
+
+- Allergies (latex, lidocaine, pigments, antibiotics)
+- Diabetes
+- Coagulation disorders / hemophilia
+- Epilepsy
+- Cardiac conditions
+- Anticoagulant use / Accutane (12-month period)
+- Pregnancy / lactation status
+- Recent alcohol/drug use (24-48 hours)
+- Dermatological conditions in the tattoo area
+- Additional observations field
+
+<Note>
+Health screening data is permanently stored for legal and safety purposes. This information helps artists make informed decisions about client suitability.
+</Note>
+
+### Consent Management
+
+Digital consent tracking for:
+
+1. **Informed Consent** - Client has read and accepts the informed consent form (required)
+2. **Image Usage** - Authorization to use tattoo images for portfolio and social media
+3. **Data Privacy** - Acceptance of personal data privacy policy
+
+**Guardian Information** (for minors):
+- Guardian name
+- Guardian phone number
+
+### Emergency Contact
+
+Store emergency contact information:
+- Contact name
+- Relationship to client
+- Phone number
+
+## Client List View
+
+### Search and Filters
+
+Quickly find clients using:
+- **Search** - Name, phone, email, or Instagram handle
+- **Sort by**:
+  - A-Z (alphabetical)
+  - Last appointment
+  - Next appointment
+  - Registration date
+
+### Table Columns
+
+The client list displays:
+
+| Column | Description |
+|--------|-------------|
+| **Client** | Full name |
+| **Contact** | Phone, email, and Instagram (formatted with @) |
+| **Artist** | Assigned artist (from next/last session or preference) |
+| **Next Appointment** | Date and time of upcoming session |
+| **Status** | Active or Archived |
+
+<Tip>
+The list uses lazy loading for performance - it loads clients in batches of 50 as you scroll.
+</Tip>
+
+### Quick Actions
+
+Right-click on any client to:
+- Open full client profile
+- Copy phone number
+- Copy email address
+- Open Instagram profile in browser
+
+## Client Detail View
+
+### Tabbed Interface
+
+Organized into five tabs:
+
+1. **Notes** - Internal notes with creation date
+2. **Preferences** - Preferred artist, location, styles, and discovery source
+3. **Health** - Complete health screening questionnaire
+4. **Consents** - Digital consent tracking and guardian information
+5. **Emergency** - Emergency contact details
+
+### Gallery Tab
+
+View all portfolio items linked to this client:
+- Photos from completed sessions
+- Automatic linking via session records
+- Filterable image gallery
+- Click to view full detail with session context
+
+### Appointments Tab
+
+Complete session history showing:
+- Date and time
+- Assigned artist
+- Session status (Active, Completed, Canceled, etc.)
+- Duration in minutes
+- Click to open session details
+
+## Workflows
+
+### Adding a New Client
+
+<Steps>
+  <Step title="Open New Client Form">
+    Click the **+ New Client** button in the toolbar
+  </Step>
+  
+  <Step title="Enter Required Information">
+    Fill in at minimum:
+    - Full name
+    - Phone number
+    
+    Optionally add email, Instagram, location, and other details
+  </Step>
+  
+  <Step title="Complete Health Screening">
+    Check applicable health conditions and add observations
+  </Step>
+  
+  <Step title="Obtain Consents">
+    Mark required consents (informed consent is mandatory)
+    
+    If client is a minor, add guardian information
+  </Step>
+  
+  <Step title="Save">
+    Click **Save** to create the client record
+  </Step>
+</Steps>
+
+### Editing Client Information
+
+<Steps>
+  <Step title="Open Client Profile">
+    Double-click a client from the list or search for them
+  </Step>
+  
+  <Step title="Enter Edit Mode">
+    Click the menu (···) and select **Edit**
+  </Step>
+  
+  <Step title="Modify Fields">
+    Update any editable fields across all tabs
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save** to commit changes or **Cancel** to discard
+  </Step>
+</Steps>
+
+<Warning>
+Editing client information may require elevated permissions depending on your role. Assistants need admin approval for certain operations.
+</Warning>
+
+### Archiving vs. Deleting
+
+**Archive** a client when:
+- They are no longer active but have session history
+- You want to preserve their records for reference
+- They may return in the future
+
+**Delete** a client when:
+- They have no associated sessions
+- You need to permanently remove their data
+- Required for GDPR/data privacy compliance
+
+<Note>
+If a client has session history, the system will recommend archiving instead of deletion to preserve your studio's records.
+</Note>
+
+## Export Functionality
+
+### CSV Export Options
+
+1. **Current View** - Exports filtered/sorted results
+2. **All Clients** - Exports complete database
+
+Exported fields:
+- ID
+- Name
+- Phone
+- Email
+- Instagram
+- Assigned Artist
+- Next Appointment
+- Last Appointment
+- Registration Date
+- Status
+
+<Tip>
+Exports use UTF-8 with BOM encoding for Excel compatibility. Files are named automatically with timestamps: `clientes_YYYYMMDD_HHMM.csv`
+</Tip>
+
+## Permissions
+
+Client management permissions vary by role:
+
+| Action | Admin | Assistant | Artist |
+|--------|-------|-----------|--------|
+| View all clients | ✓ | ✓ | ✓ |
+| Create client | ✓ | ✓ | Limited |
+| Edit client | ✓ | Requires elevation | Own clients |
+| Delete client | ✓ | Requires elevation | ✗ |
+| View notes | ✓ | ✓ | Own clients |
+| Edit notes | ✓ | ✓ | Own clients |
+| Export data | ✓ | ✓ | Own data |
+| Change photo | ✓ | Requires elevation | Own uploads |
+
+<Info>
+**Own clients** refers to clients assigned to that artist or with sessions by that artist.
+</Info>
+
+## Data Fields Reference
+
+### Client Model (`data/models/client.py`)
+
+```python
+id: Integer (primary key)
+name: String(120) - Required
+phone: String(40)
+email: String(120)
+instagram: Text
+city: Text
+state: Text
+gender: Text
+birthdate: Date
+is_active: Boolean - Default: True
+created_at: DateTime - Auto-generated
+
+# Preferences
+preferred_artist_id: Integer (Foreign Key)
+
+# Health Screening
+health_allergies: Boolean
+health_diabetes: Boolean
+health_coagulation: Boolean
+health_epilepsy: Boolean
+health_cardiac: Boolean
+health_anticoagulants: Boolean
+health_preg_lact: Boolean
+health_substances: Boolean
+health_derm: Boolean
+health_obs: Text
+
+# Consents
+consent_info: Boolean
+consent_image: Boolean
+consent_data: Boolean
+
+# Emergency
+emergency_name: Text
+emergency_relation: Text
+emergency_phone: Text
+
+# Notes
+notes: Text
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep Health Records Updated">
+    Health conditions can change over time. Ask clients to review their health information before each session, especially for returning clients.
+  </Accordion>
+  
+  <Accordion title="Use Internal Notes Wisely">
+    Notes are visible to all staff with permission. Use them for:
+    - Client preferences and dislikes
+    - Important behavioral observations
+    - Scheduling preferences
+    - Payment history notes
+    
+    Avoid including:
+    - Gossip or personal judgments
+    - Unverified medical information
+  </Accordion>
+  
+  <Accordion title="Maintain Contact Information">
+    Accurate contact information is essential for:
+    - Appointment reminders
+    - Follow-up care instructions
+    - Marketing and promotions
+    - Emergency situations
+    
+    Verify phone and email at each visit.
+  </Accordion>
+  
+  <Accordion title="Photo Management">
+    Profile photos help with:
+    - Client recognition
+    - Professionalism
+    - Personalization
+    
+    Photos are stored at 512x512 pixels in PNG format at `data/uploads/clients/`
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+- [Appointment Scheduling](/features/appointment-scheduling) - Book sessions for clients
+- [Artist Portfolios](/features/artist-portfolios) - Link client tattoos to artist galleries
+- [Financial Tracking](/features/financial-tracking) - Track payments per client
+
+## Technical Details
+
+### Auto-Refresh
+
+The client list auto-refreshes every 60 seconds when visible to show:
+- New appointments scheduled
+- Status changes
+- Recently added clients
+
+### Avatar Storage
+
+Avatar images are stored with ownership metadata:
+- Location: `data/uploads/clients/{client_id}.png`
+- Metadata: `data/uploads/clients/{client_id}.meta.json`
+- Owner tracking prevents unauthorized replacements
+- Circular rendering with 48px radius
+
+### Database Relations
+
+```
+Client
+  ├── sessions (One-to-Many → TattooSession)
+  │   └── Cascade delete: removes all sessions when client deleted
+  ├── preferred_artist (Many-to-One → Artist)
+  └── portfolio_items (One-to-Many → PortfolioItem)
+```

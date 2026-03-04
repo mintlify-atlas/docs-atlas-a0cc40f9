@@ -1,0 +1,454 @@
+---
+title: 'PortfolioItem Model'
+description: 'Portfolio image data model for tattoo work galleries and media management'
+---
+
+## Overview
+
+The `PortfolioItem` model represents images and media in the tattoo studio's portfolio, linking photos to artists, clients, sessions, and transactions with metadata for categorization and public display.
+
+## Model Definition
+
+```python
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
+
+class PortfolioItem(Base):
+    __tablename__ = "portfolio_items"
+```
+
+## Fields
+
+### Primary Key
+
+<ResponseField name="id" type="Integer" required>
+  Unique identifier for the portfolio item
+</ResponseField>
+
+### Relationships (All Nullable)
+
+<ResponseField name="artist_id" type="Integer">
+  Foreign key reference to the artist
+  
+  **Foreign Key:** artists.id
+  
+  **Nullable:** True (portfolio item may not be tied to specific artist)
+</ResponseField>
+
+<ResponseField name="user_id" type="Integer">
+  Foreign key reference to the user who uploaded the item
+  
+  **Foreign Key:** users.id
+  
+  **Nullable:** True
+</ResponseField>
+
+<ResponseField name="client_id" type="Integer">
+  Foreign key reference to the client shown in the image
+  
+  **Foreign Key:** clients.id
+  
+  **Nullable:** True
+</ResponseField>
+
+<ResponseField name="session_id" type="Integer">
+  Foreign key reference to the tattoo session
+  
+  **Foreign Key:** sessions.id
+  
+  **Nullable:** True
+</ResponseField>
+
+<ResponseField name="transaction_id" type="Integer">
+  Foreign key reference to the payment transaction
+  
+  **Foreign Key:** transactions.id
+  
+  **Nullable:** True
+</ResponseField>
+
+### File Paths
+
+<ResponseField name="path" type="String" required>
+  File path to the full-size image
+  
+  **Usage:** Relative or absolute path to stored image
+</ResponseField>
+
+<ResponseField name="thumb_path" type="String">
+  File path to the thumbnail image
+  
+  **Nullable:** True
+  
+  **Usage:** Optimized smaller version for galleries
+</ResponseField>
+
+### Description
+
+<ResponseField name="caption" type="Text">
+  Image caption or description
+  
+  **Nullable:** True
+  
+  **Usage:** Description, story, or context about the tattoo
+</ResponseField>
+
+### Categorization Metadata
+
+<ResponseField name="style" type="String">
+  Tattoo style
+  
+  **Nullable:** True
+  
+  **Examples:** "Traditional", "Realism", "Japanese", "Blackwork", "Watercolor"
+</ResponseField>
+
+<ResponseField name="body_area" type="String">
+  Body placement area
+  
+  **Nullable:** True
+  
+  **Examples:** "arm", "back", "leg", "chest", "sleeve"
+</ResponseField>
+
+<ResponseField name="color_mode" type="String">
+  Color mode of the tattoo
+  
+  **Nullable:** True
+  
+  **Valid Values:** "color", "bn" (black and white)
+</ResponseField>
+
+<ResponseField name="fresh_or_healed" type="String">
+  Healing status when photo was taken
+  
+  **Nullable:** True
+  
+  **Valid Values:** "fresh", "healed"
+</ResponseField>
+
+### Display Settings
+
+<ResponseField name="is_public" type="Boolean" default="true">
+  Whether the image is visible to public
+  
+  **Usage:** Control visibility on public portfolio/website
+</ResponseField>
+
+<ResponseField name="is_cover" type="Boolean" default="false">
+  Whether this image should be featured as a cover image
+  
+  **Usage:** Flag for highlighting in galleries or artist profiles
+</ResponseField>
+
+### Metadata
+
+<ResponseField name="created_at" type="DateTime" default="datetime.utcnow">
+  Timestamp when the portfolio item was created
+</ResponseField>
+
+## Relationship Objects
+
+<ResponseField name="artist" type="Artist">
+  The Artist object this portfolio item belongs to
+  
+  **Lazy Loading:** joined (eager loading)
+</ResponseField>
+
+<ResponseField name="user" type="User">
+  The User object who uploaded this item
+  
+  **Lazy Loading:** joined (eager loading)
+</ResponseField>
+
+<ResponseField name="client" type="Client">
+  The Client object shown in this image
+  
+  **Lazy Loading:** joined (eager loading)
+</ResponseField>
+
+<ResponseField name="session" type="TattooSession">
+  The TattooSession object this image is from
+  
+  **Lazy Loading:** joined (eager loading)
+</ResponseField>
+
+<ResponseField name="transaction" type="Transaction">
+  The Transaction object associated with this work
+  
+  **Lazy Loading:** joined (eager loading)
+</ResponseField>
+
+## Database Schema
+
+```sql
+CREATE TABLE portfolio_items (
+    id INTEGER PRIMARY KEY,
+    
+    -- Relationships (all nullable)
+    artist_id INTEGER,
+    user_id INTEGER,
+    client_id INTEGER,
+    session_id INTEGER,
+    transaction_id INTEGER,
+    
+    -- File paths
+    path VARCHAR NOT NULL,
+    thumb_path VARCHAR,
+    
+    -- Description
+    caption TEXT,
+    
+    -- Categorization
+    style VARCHAR,
+    body_area VARCHAR,
+    color_mode VARCHAR,
+    fresh_or_healed VARCHAR,
+    
+    -- Display settings
+    is_public BOOLEAN NOT NULL DEFAULT 1,
+    is_cover BOOLEAN NOT NULL DEFAULT 0,
+    
+    -- Metadata
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (artist_id) REFERENCES artists(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (client_id) REFERENCES clients(id),
+    FOREIGN KEY (session_id) REFERENCES sessions(id),
+    FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+);
+```
+
+## Usage Examples
+
+### Create Portfolio Item from Session
+
+```python
+from data.models.portfolio import PortfolioItem
+from datetime import datetime
+
+# Add photo after completing a session
+portfolio_item = PortfolioItem(
+    artist_id=1,
+    user_id=2,
+    client_id=5,
+    session_id=10,
+    path="/uploads/portfolio/2024/03/tattoo_001.jpg",
+    thumb_path="/uploads/portfolio/2024/03/thumbs/tattoo_001.jpg",
+    caption="Japanese dragon sleeve - first session",
+    style="Japanese",
+    body_area="sleeve",
+    color_mode="color",
+    fresh_or_healed="fresh",
+    is_public=True,
+    is_cover=False
+)
+db.add(portfolio_item)
+db.commit()
+```
+
+### Create Standalone Portfolio Item
+
+```python
+# Add a general portfolio image not tied to a specific session
+portfolio_item = PortfolioItem(
+    artist_id=1,
+    path="/uploads/portfolio/general/flash_design_01.jpg",
+    thumb_path="/uploads/portfolio/general/thumbs/flash_design_01.jpg",
+    caption="Available flash design",
+    style="Traditional",
+    color_mode="color",
+    is_public=True
+)
+db.add(portfolio_item)
+db.commit()
+```
+
+### Get Public Portfolio for Artist
+
+```python
+# Get all public portfolio items for an artist
+artist_id = 1
+
+portfolio = db.query(PortfolioItem).filter(
+    PortfolioItem.artist_id == artist_id,
+    PortfolioItem.is_public == True
+).order_by(PortfolioItem.created_at.desc()).all()
+
+for item in portfolio:
+    print(f"{item.style or 'Uncategorized'} - {item.caption or 'No caption'}")
+```
+
+### Get Cover Images
+
+```python
+# Get featured/cover images
+cover_images = db.query(PortfolioItem).filter(
+    PortfolioItem.is_cover == True,
+    PortfolioItem.is_public == True
+).all()
+```
+
+### Filter by Style
+
+```python
+# Get all Japanese style tattoos
+japanese_work = db.query(PortfolioItem).filter(
+    PortfolioItem.style == "Japanese",
+    PortfolioItem.is_public == True
+).all()
+
+for item in japanese_work:
+    if item.artist:
+        print(f"By {item.artist.name}: {item.caption}")
+```
+
+### Filter by Body Area
+
+```python
+# Get all sleeve tattoos
+sleeves = db.query(PortfolioItem).filter(
+    PortfolioItem.body_area == "sleeve",
+    PortfolioItem.is_public == True
+).order_by(PortfolioItem.created_at.desc()).all()
+```
+
+### Get Client's Tattoo History
+
+```python
+# Get all portfolio images for a specific client
+client_id = 5
+
+client_tattoos = db.query(PortfolioItem).filter(
+    PortfolioItem.client_id == client_id
+).order_by(PortfolioItem.created_at).all()
+
+print(f"Client's tattoo history:")
+for item in client_tattoos:
+    print(f"  {item.created_at.strftime('%Y-%m-%d')} - {item.caption}")
+    if item.session:
+        print(f"    Session with {item.session.artist.name}")
+```
+
+### Toggle Privacy
+
+```python
+# Make an image private
+item = db.query(PortfolioItem).filter(PortfolioItem.id == 1).first()
+item.is_public = False
+db.commit()
+
+# Make it public again
+item.is_public = True
+db.commit()
+```
+
+### Set Cover Image
+
+```python
+# Set a new cover image (unset previous covers for the artist)
+artist_id = 1
+new_cover_id = 10
+
+# Remove existing cover flags for this artist
+db.query(PortfolioItem).filter(
+    PortfolioItem.artist_id == artist_id,
+    PortfolioItem.is_cover == True
+).update({"is_cover": False})
+
+# Set new cover
+item = db.query(PortfolioItem).filter(PortfolioItem.id == new_cover_id).first()
+item.is_cover = True
+db.commit()
+```
+
+### Search Portfolio
+
+```python
+# Search by caption
+search_term = "dragon"
+
+results = db.query(PortfolioItem).filter(
+    PortfolioItem.caption.ilike(f"%{search_term}%"),
+    PortfolioItem.is_public == True
+).all()
+```
+
+## Filtering and Gallery Organization
+
+### Multi-Filter Gallery
+
+```python
+def get_filtered_portfolio(artist_id=None, style=None, body_area=None, 
+                           color_mode=None, fresh_or_healed=None):
+    query = db.query(PortfolioItem).filter(
+        PortfolioItem.is_public == True
+    )
+    
+    if artist_id:
+        query = query.filter(PortfolioItem.artist_id == artist_id)
+    if style:
+        query = query.filter(PortfolioItem.style == style)
+    if body_area:
+        query = query.filter(PortfolioItem.body_area == body_area)
+    if color_mode:
+        query = query.filter(PortfolioItem.color_mode == color_mode)
+    if fresh_or_healed:
+        query = query.filter(PortfolioItem.fresh_or_healed == fresh_or_healed)
+    
+    return query.order_by(PortfolioItem.created_at.desc()).all()
+```
+
+## Common Categorization Values
+
+### Styles
+- Traditional
+- Japanese
+- Realism
+- Blackwork
+- Watercolor
+- Geometric
+- Tribal
+- Neo-Traditional
+- Minimalist
+
+### Body Areas
+- arm
+- leg
+- back
+- chest
+- sleeve
+- half-sleeve
+- hand
+- neck
+- foot
+
+### Color Modes
+- **color** - Color tattoo
+- **bn** - Black and white (black and grey)
+
+### Healing Status
+- **fresh** - Freshly done (same day)
+- **healed** - Fully healed (weeks/months later)
+
+## Image Management Best Practices
+
+1. **Always generate thumbnails** for better performance in galleries
+2. **Use relative paths** for portability
+3. **Organize by date** (e.g., `/uploads/portfolio/YYYY/MM/`)
+4. **Store metadata** (style, body_area) for better filtering
+5. **Respect privacy** - check `is_public` flag before displaying
+6. **Link to sessions** when possible for complete record-keeping
+7. **Use cover images** to feature best work
+
+## Notes
+
+- All relationship fields are nullable for maximum flexibility
+- The `artist` relationship has cascade delete from Artist model
+- Images can exist without being tied to any session (flash, designs)
+- Use `is_public` to control portfolio visibility without deleting
+- The `created_at` timestamp helps with chronological sorting
+- `thumb_path` is essential for performance in grid galleries
+- Lazy loading is set to "joined" for eager loading of relationships
+- Location in codebase: `data/models/portfolio.py:7`

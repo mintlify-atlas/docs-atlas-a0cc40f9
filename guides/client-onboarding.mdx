@@ -1,0 +1,172 @@
+---
+title: Client Onboarding
+description: Step-by-step guide to register new clients in the system
+---
+
+The client onboarding process captures all necessary information including identification, health screening, consents, and preferences.
+
+## Opening the New Client Form
+
+Access the client registration form:
+- From the Clients page, click **Nuevo cliente** (New Client)
+- From the Appointments page, click **Guardar y agendar** to create a client and schedule simultaneously
+
+<Info>
+The form uses tabs to organize information logically. You can navigate between tabs at any time before saving.
+</Info>
+
+<Steps>
+
+### Step 1: Identification & Contact
+
+#### Personal Information (Required)
+
+- **Nombre(s)** (`in_nombres`) - First name(s) *
+- **Primer apellido** (`in_ap1`) - First last name *
+- **Segundo apellido** (`in_ap2`) - Second last name (optional)
+- **Fecha de nacimiento** (`in_fnac`) - Birth date
+- **Género** (`cb_genero`) - Gender identity
+
+<Tip>
+The gender field includes inclusive options: Femenino, Masculino, No binario, Agénero, Género fluido, and more.
+</Tip>
+
+#### Contact Details (Required)
+
+- **Teléfono** (`in_tel`) - Primary phone number *
+- **Instagram** (`in_ig`) - Username (optional, auto-prefixes with @)
+- **Correo** (`in_mail`) - Email address (optional)
+- **Ciudad** (`in_ciudad`) - City (optional)
+- **Estado** (`in_estado`) - State (optional)
+
+<Warning>
+Name, first last name, and phone number are required. These fields will be marked in red if left empty when you try to save.
+</Warning>
+
+### Step 2: Preferences
+
+Capture the client's tattoo preferences:
+
+- **Artista preferido** (`cb_artista`) - Select from active artists or "Sin preferencia"
+- **Estilos favoritos** (`lst_estilos`) - Multi-select from:
+  - Línea fina
+  - Realismo
+  - Tradicional
+  - Acuarela
+  - Geométrico
+  - Blackwork
+  - Anime
+- **Zonas de interés** (`lst_zonas`) - Body areas:
+  - Brazo, Antebrazo, Pierna, Espalda, Pecho, Muñeca, Tobillo
+- **¿Cómo nos conoció?** (`cb_origen`) - Discovery source:
+  - Instagram, TikTok, Google, Referido, Otro
+
+### Step 3: Health Screening
+
+Complete the health questionnaire by checking all applicable conditions:
+
+- **Alergias** (`chk_alergias`) - Allergies (latex, lidocaine, pigments, antibiotics)
+- **Diabetes** (`chk_diabetes`)
+- **Coagulación** (`chk_coagulacion`) - Clotting disorders / hemophilia
+- **Epilepsia** (`chk_epilepsia`)
+- **Cardiaco** (`chk_cardiaco`) - Cardiac conditions
+- **Anticoagulantes** (`chk_anticoagulantes`) - Blood thinners / Accutane (12 months)
+- **Embarazo/lactancia** (`chk_emb_lact`) - Pregnancy / breastfeeding
+- **Sustancias** (`chk_sustancias`) - Alcohol/drugs in last 24-48 hours
+- **Dermatológicos** (`chk_derm`) - Skin issues in the area
+
+**Observaciones** (`txt_salud_obs`) - Additional health notes
+
+<Warning>
+Accurate health information is critical for client safety. Review all responses carefully with the client.
+</Warning>
+
+### Step 4: Consents
+
+#### Required Consents
+
+- **Consentimiento informado** (`chk_consent_info`) - Required *
+- **Uso de imágenes** (`chk_uso_imagen`) - Portfolio/social media consent
+- **Política de datos** (`chk_datos`) - Data privacy policy
+
+#### Minor's Guardian (if applicable)
+
+If the client is under 18:
+- **Nombre del tutor** (`in_tutor_nombre`) - Guardian's full name
+- **Teléfono del tutor** (`in_tutor_tel`) - Guardian's phone
+
+<Check>
+The informed consent checkbox is required before the client can be saved.
+</Check>
+
+### Step 5: Emergency Contact
+
+Provide an emergency contact person:
+
+- **Nombre** (`in_emerg_nombre`) - Contact's name
+- **Relación** (`in_emerg_rel`) - Relationship (madre, amigo, etc.)
+- **Teléfono** (`in_emerg_tel`) - Contact's phone number
+
+### Step 6: Notes
+
+Add internal notes about the client:
+
+- **Notas internas** (`txt_notas`) - Free-form notes for staff use only
+
+<Tip>
+Use the notes field to record design ideas, special requirements, or any other information that will help provide better service.
+</Tip>
+
+### Step 7: Save the Client
+
+Choose how to complete the registration:
+
+- **Guardar** - Save the client and return to the previous screen
+- **Guardar y agendar** - Save the client and open the appointment scheduler
+- **Cancelar** - Discard changes and close the form
+
+</Steps>
+
+## Data Handling
+
+### Field Mapping
+
+The system automatically:
+- Combines first name and last names into a single `name` field
+- Removes the `@` symbol from Instagram usernames before saving
+- Stores styles and zones as comma-separated values
+- Creates the client record with `is_active = true`
+- Sets the `created_at` timestamp
+
+### Database Columns
+
+The form intelligently maps data to available database columns:
+- **Preferences**: Tries `preferred_styles`, `favorite_styles`, `pref_styles` (first available)
+- **Zones**: Tries `preferred_zones`, `interest_zones`, `pref_zones`
+- **Source**: Tries `discovery_source`, `pref_source`, `how_meet`, `how_found`
+- **Guardian**: Tries `tutor_name`, `guardian_name`, `parent_name`
+
+<Info>
+Extra columns are automatically added to the database if they don't exist, ensuring data is never lost.
+</Info>
+
+## Permissions
+
+The **clients.create** permission is required to add new clients. Users without this permission cannot access the client creation form.
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Complete Forms Thoroughly" icon="clipboard-check">
+    Fill in as much information as possible. Complete profiles help artists prepare better for sessions.
+  </Card>
+  <Card title="Verify Health Info" icon="heart-pulse">
+    Review health screening responses verbally with the client to ensure accuracy.
+  </Card>
+  <Card title="Get Proper Consents" icon="file-signature">
+    Ensure all required consents are checked before saving. This protects both client and studio.
+  </Card>
+  <Card title="Update Regularly" icon="rotate">
+    Encourage clients to inform you of any health changes that could affect their tattoo sessions.
+  </Card>
+</CardGroup>

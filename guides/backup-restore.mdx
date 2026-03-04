@@ -1,0 +1,350 @@
+---
+title: Backup & Restore
+description: Protect your data with automated backups and restore capabilities
+---
+
+The backup system provides automated daily backups and manual backup/restore functionality to protect your tattoo studio's data.
+
+## How Backups Work
+
+The system uses SQLite's native backup API to create consistent database snapshots.
+
+### Backup Location
+
+Backups are stored in:
+```
+{database_directory}/backups/backup_YYYYMMDD_HHMMSS.db
+```
+
+Example:
+```
+data/
+├── tattoostudio.db          ← Active database
+└── backups/
+    ├── backup_20260304_093012.db
+    ├── backup_20260303_082544.db
+    └── backup_20260302_091823.db
+```
+
+<Info>
+Backup files are complete, standalone SQLite databases that can be opened independently.
+</Info>
+
+## Automated Daily Backups
+
+The system automatically creates backups once per day:
+
+<Steps>
+
+### How It Works
+
+1. **On application start** - Check if a backup exists for today
+2. **Timezone check** - Uses America/Hermosillo timezone
+3. **Create backup** - If none exists for today, create one
+4. **Update settings** - Store last backup timestamp in `settings.json`
+5. **Cleanup old backups** - Keep only the most recent 20 backups
+
+### Viewing Last Backup
+
+The status bar shows:
+```
+Último respaldo: 04/03/2026 09:30
+```
+
+or
+```
+Último respaldo: —
+```
+if no backup has been created yet.
+
+</Steps>
+
+<Tip>
+The automatic backup runs silently in the background and doesn't interrupt your work.
+</Tip>
+
+## Creating Manual Backups
+
+Create backups on-demand before major operations:
+
+<Steps>
+
+### Step 1: Access Backup Function
+
+From the main menu or settings, click **Crear Respaldo** or **Backup Now**.
+
+### Step 2: Confirm Creation
+
+The system:
+1. Connects to the active database (read-only)
+2. Creates a timestamped backup file
+3. Uses SQLite's `backup()` API for consistency
+4. Closes connections
+5. Updates `settings.json` with timestamp
+
+### Step 3: Verify Success
+
+A success message displays the backup location:
+```
+Respaldo creado exitosamente:
+/path/to/data/backups/backup_20260304_142305.db
+```
+
+</Steps>
+
+<Warning>
+Manual backups count toward the 20-backup limit. Old backups are automatically deleted when the limit is exceeded.
+</Warning>
+
+## Listing Available Backups
+
+View all available backup files:
+
+### Backup Information
+
+Each backup shows:
+- **name** - Filename (e.g., `backup_20260304_142305.db`)
+- **display** - Friendly date/time (e.g., "04/03/2026 14:23")
+- **size** - File size in bytes
+- **path** - Full file path
+
+Backups are listed newest first.
+
+### Using the Service
+
+```python
+from services.backups import list_backups
+
+backups = list_backups()
+for backup in backups:
+    print(f"{backup['display']} - {backup['name']}")
+```
+
+## Restoring from Backup
+
+<Warning>
+**Critical:** Restoring a backup will overwrite your current database. This action cannot be undone. Always create a backup before restoring.
+</Warning>
+
+<Steps>
+
+### Step 1: Choose Backup File
+
+From the backup list, select the backup you want to restore.
+
+Consider:
+- Date/time of the backup
+- Why you need to restore (data loss, corruption, rollback)
+- How much recent data will be lost
+
+### Step 2: Confirm Restore
+
+The system asks for confirmation:
+```
+¿Está seguro que desea restaurar este respaldo?
+
+Backup: 04/03/2026 09:30
+
+Advertencia: Esto sobrescribirá la base de datos actual.
+Se creará una copia de seguridad de la BD actual antes de continuar.
+```
+
+### Step 3: Automatic Safety Backup
+
+Before restoring, the system:
+1. Creates a safety copy of the current database
+2. Names it: `tattoostudio.db.before_restore_20260304_143012`
+3. Stores it alongside the main database
+
+<Info>
+The safety copy allows you to recover if the restore doesn't go as planned.
+</Info>
+
+### Step 4: Restore Process
+
+1. **Close database connections** - Ensure exclusive access
+2. **Copy backup file** - Overwrite active database
+3. **Verify integrity** - Confirm database is readable
+4. **Success message** - "Respaldo restaurado exitosamente"
+
+### Step 5: Restart Application
+
+For complete safety:
+1. Close Tattoo Studio Manager
+2. Restart the application
+3. Verify data is correct
+4. Check recent records
+
+</Steps>
+
+## Backup Configuration
+
+### Settings Storage
+
+Backup metadata in `settings.json`:
+```json
+{
+  "last_backup_at": "2026-03-04T09:30:12-07:00",
+  "studio": { ... },
+  "agenda_hours": { ... }
+}
+```
+
+### Maximum Backups
+
+The system keeps the 20 most recent backups. Configure in `services/backups.py`:
+
+```python
+MAX_BACKUPS = 20  # Change this value if needed
+```
+
+<Tip>
+Adjust MAX_BACKUPS based on your disk space and backup frequency needs.
+</Tip>
+
+## Backup Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Before Major Changes" icon="shield-check">
+    Always create a manual backup before:
+    - Database migrations
+    - Bulk data operations
+    - Software updates
+    - Schema changes
+  </Card>
+  <Card title="External Storage" icon="cloud-arrow-up">
+    Copy backups to external drives or cloud storage periodically for disaster recovery.
+  </Card>
+  <Card title="Test Restores" icon="vial">
+    Periodically test restoring to a different location to verify backup integrity.
+  </Card>
+  <Card title="Document Restores" icon="file-pen">
+    Keep a log of when and why you restore backups for audit purposes.
+  </Card>
+</CardGroup>
+
+## Backup Retention
+
+### Automatic Cleanup
+
+When backups exceed MAX_BACKUPS:
+```python
+files = sorted(backup_dir.glob("backup_*.db"), 
+               key=lambda p: p.stat().st_mtime, 
+               reverse=True)
+for old_backup in files[MAX_BACKUPS:]:
+    old_backup.unlink()  # Delete oldest backups
+```
+
+### Manual Management
+
+To preserve specific backups:
+1. Copy them outside the `backups/` directory
+2. Rename them to prevent automatic deletion
+3. Store them with descriptive names:
+   ```
+   important_before_migration_20260304.db
+   quarter_end_20260331.db
+   ```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Backup creation fails" icon="triangle-exclamation">
+    **Possible causes:**
+    - Database is locked by another process
+    - Insufficient disk space
+    - Permission denied in backup directory
+    
+    **Solutions:**
+    - Close other database connections
+    - Free up disk space
+    - Check folder permissions
+  </Accordion>
+  
+  <Accordion title="Restore doesn't complete" icon="circle-xmark">
+    **Possible causes:**
+    - Database file corrupted
+    - Application still running
+    - Insufficient permissions
+    
+    **Solutions:**
+    - Verify backup file opens in SQLite
+    - Close application completely
+    - Run as administrator (if needed)
+    - Use the safety backup to recover
+  </Accordion>
+  
+  <Accordion title="Last backup shows old date" icon="clock">
+    **Possible causes:**
+    - Application not running overnight
+    - Backup failed silently
+    - Timezone mismatch
+    
+    **Solutions:**
+    - Create manual backup
+    - Check disk space
+    - Verify timezone settings
+    - Review error logs
+  </Accordion>
+  
+  <Accordion title="Can't find backup files" icon="folder-open">
+    **Possible causes:**
+    - Wrong directory
+    - Files deleted manually
+    - Database location changed
+    
+    **Solutions:**
+    - Check `{database_directory}/backups/`
+    - Search for `backup_*.db` files
+    - Verify database path in settings
+  </Accordion>
+</AccordionGroup>
+
+## Technical Details
+
+### Backup Method
+
+The system uses SQLite's `backup()` API:
+```python
+src = sqlite3.connect(str(db_path))
+dst = sqlite3.connect(str(dest))
+src.backup(dst)  # Consistent snapshot
+dst.close()
+src.close()
+```
+
+Advantages:
+- Consistent snapshot (no partial writes)
+- Handles large databases efficiently
+- Works while database is in use
+- Native SQLite feature
+
+### Timezone Handling
+
+All timestamps use:
+```python
+from zoneinfo import ZoneInfo
+TZ = ZoneInfo("America/Hermosillo")
+now = datetime.now(TZ)
+```
+
+This ensures:
+- Consistent date detection
+- Accurate "today" checks
+- Correct display times
+
+### Safety Backup Naming
+
+Restore safety backups use:
+```python
+safety = db_path.with_suffix(
+    db_path.suffix + f".before_restore_{timestamp}"
+)
+```
+
+Example: `tattoostudio.db.before_restore_20260304_143012`
+
+<Check>
+This naming prevents conflicts and clearly identifies the safety backup's purpose.
+</Check>

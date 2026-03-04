@@ -1,0 +1,428 @@
+---
+title: Appointment Scheduling
+description: Visual calendar interface with drag-and-drop scheduling, multiple views, and artist availability management
+---
+
+## Overview
+
+The Appointment Scheduling system (Agenda) provides a powerful visual calendar interface to manage tattoo sessions across your entire studio. Track artist availability, manage bookings, and monitor session status with an intuitive multi-view scheduler.
+
+## Calendar Views
+
+### Day View
+
+Hourly timeline for a single day:
+- Time slots based on studio hours (default: 8:00 AM - 9:30 PM)
+- 30-minute intervals (configurable: 5, 10, 15, 20, 30, or 60 minutes)
+- Column per artist with color-coded appointments
+- Visual appointment cards showing client name, service, and time
+
+### Week View
+
+Seven-day overview:
+- One column per day
+- Appointments grouped by artist with color coding
+- Compact cards for space efficiency
+- Quick navigation between weeks
+
+### Month View
+
+Monthly calendar grid:
+- Traditional month layout
+- Appointment count badges per day
+- Click any day to see appointments
+- Color indicators for multiple artists
+
+### List View
+
+Tabular appointment list:
+- Searchable and filterable
+- Sort by date, client, artist, or status
+- Export to CSV
+- Bulk operations
+
+## Mini Calendar
+
+Sidebar calendar for quick navigation:
+- Current month display
+- Click any date to jump to that day
+- Today highlighted in blue
+- Selected date highlighted
+- Hover effects for better usability
+- Navigate months with arrow buttons
+
+<Tip>
+The mini calendar displays in Spanish locale with Sunday as the first day of the week, matching typical studio scheduling preferences.
+</Tip>
+
+## Appointment Management
+
+### Creating Appointments
+
+<Steps>
+  <Step title="Open New Appointment Dialog">
+    Click **+ New Appointment** in the sidebar or toolbar
+  </Step>
+  
+  <Step title="Select Date and Time">
+    - Choose date from calendar picker
+    - Set start hour and minute using spinners
+    - Set duration in minutes (default: 60, range: 15-600)
+  </Step>
+  
+  <Step title="Assign Artist">
+    Select the tattoo artist from the dropdown
+    
+    The combo box is searchable - start typing to filter
+  </Step>
+  
+  <Step title="Select or Create Client">
+    Choose an existing client or type a new name
+    
+    The client field has autocomplete for quick selection
+  </Step>
+  
+  <Step title="Add Service Details">
+    Enter service description and any notes (optional)
+  </Step>
+  
+  <Step title="Set Initial Status">
+    Choose from:
+    - **Active** - Confirmed appointment
+    - **Pending** - Awaiting confirmation
+    - **Completed** - Already finished
+    - **Canceled** - Canceled by client or studio
+  </Step>
+  
+  <Step title="Create">
+    Click **Create** to add the appointment to the calendar
+  </Step>
+</Steps>
+
+### Editing Appointments
+
+Double-click any appointment card or select from context menu:
+
+**Editable fields:**
+- Date and time
+- Duration
+- Artist assignment
+- Client
+- Service/notes
+- Status
+
+<Warning>
+Changing the artist or date/time will check for conflicts. The system prevents double-booking of artists.
+</Warning>
+
+### Appointment Status
+
+Appointments flow through these states:
+
+| Status | Color | Meaning |
+|--------|-------|----------|
+| **Active** | Green border | Confirmed and scheduled |
+| **Pending** | Yellow border | Awaiting confirmation |
+| **Completed** | Blue border | Session finished |
+| **Canceled** | Red border | Canceled session |
+
+Status affects visual styling:
+- **Completed**: Faded background (92% opacity)
+- **Canceled**: More transparent (55% opacity)
+- **Pending**: Moderate transparency (82% opacity)
+- **Active**: Full color (96% opacity)
+
+## Session Details
+
+Each session (`TattooSession`) includes:
+
+```python
+id: Integer (primary key)
+client_id: Integer (Foreign Key → Client)
+artist_id: Integer (Foreign Key → Artist)
+start: DateTime - Indexed
+end: DateTime - Indexed  
+status: Enum ("Active", "Completed", "Pending", "Canceled")
+price: Float - Default: 0.0
+notes: Text
+commission_override: Float (optional)
+```
+
+### Financial Integration
+
+Sessions link to the financial system:
+
+- **Multiple transactions per session** - Track deposits, final payments, and tips separately
+- **Total paid calculation** - Automatic sum of all non-deleted transactions
+- **Balance tracking** - `price - total_paid` (never negative)
+- **Commission override** - Custom commission percentage per session
+
+<Info>
+The `transaction` property returns the most recent transaction for backward compatibility with existing code.
+</Info>
+
+## Filters and Search
+
+### Sidebar Filters
+
+**Artist Selection**
+- Checkboxes for each active artist
+- Colored indicators matching artist colors
+- Uncheck to hide artist's appointments
+- "Select All" / "Deselect All" bulk actions
+
+**Status Filter**
+- All statuses
+- Active only
+- Completed only
+- Canceled only  
+- Pending only
+
+**Client Search**
+- Real-time search as you type
+- Filters appointments by client name
+- Case-insensitive
+
+### View Controls
+
+**Date Navigation**
+- **Today** - Jump to current date
+- **Previous** (‹) - Go back one period
+- **Next** (›) - Go forward one period
+- Current date displayed in large, readable format
+
+**View Selector**
+- Day
+- Week
+- Month
+- List
+
+Dropdown with ▾ indicator
+
+## Context Menu Actions
+
+Right-click any appointment card for quick actions:
+
+- **View Details** - Open full session information
+- **Edit** - Modify appointment details
+- **Complete Session** - Mark as completed and process payment
+- **Cancel Session** - Mark as canceled
+- **Delete** - Permanently remove (requires confirmation)
+
+<Warning>
+Deleting a session also removes associated transactions. This action cannot be undone. Consider marking as "Canceled" instead to preserve history.
+</Warning>
+
+## Payment Processing
+
+From the appointment detail or context menu:
+
+<Steps>
+  <Step title="Open Payment Dialog">
+    Select **Complete Session** or **Process Payment**
+  </Step>
+  
+  <Step title="Enter Payment Details">
+    - **Amount**: Total price for the session
+    - **Commission %**: Artist commission percentage
+    - **Payment Method**: Cash, Card, Transfer, or Mixed
+    - **Note**: Reference or additional details
+  </Step>
+  
+  <Step title="Review Commission">
+    The system automatically calculates commission amount:
+    ```
+    Commission = Amount × Commission % ÷ 100
+    ```
+  </Step>
+  
+  <Step title="Confirm Payment">
+    Click **OK** to:
+    - Create transaction record
+    - Update session status to "Completed"
+    - Calculate artist commission
+  </Step>
+</Steps>
+
+## Export Functionality
+
+### Export Options
+
+1. **Current Day** - Exports all appointments for the selected date
+2. **Current Week** - Exports the full week view
+3. **List View** - Exports filtered list results
+
+Export format (CSV):
+```
+Date, Client, Artist, Time, Duration, Status, Price, Notes
+```
+
+<Tip>
+Exported files are UTF-8 encoded with BOM for Excel compatibility. Filenames include timestamps for easy organization.
+</Tip>
+
+## Studio Hours Configuration
+
+Customize your agenda display in `settings.json`:
+
+```json
+{
+  "agenda_hours": {
+    "start": "08:00",
+    "end": "21:30",
+    "step": 30
+  }
+}
+```
+
+- **start**: First time slot (format: "HH:MM")
+- **end**: Last time slot (format: "HH:MM")
+- **step**: Interval in minutes (5, 10, 15, 20, 30, or 60)
+
+## Artist Color Coding
+
+Appointments are color-coded by artist for visual clarity:
+
+**Color Assignment**:
+1. First checks `artist_colors.json` for custom colors by artist ID
+2. Falls back to predefined color palette
+3. Each artist gets a unique, consistent color
+
+**Default Palette**:
+- Artist 1: #8B5CF6 (Purple)
+- Artist 2: #EC4899 (Pink) 
+- Artist 3: #10B981 (Green)
+- Artist 4: #F59E0B (Amber)
+- Artist 5: #3B82F6 (Blue)
+- And more...
+
+Colors maintain 60% luminosity for readability and visual harmony.
+
+<Info>
+Custom artist colors can be set in the Staff management section. Changes apply immediately across all calendar views.
+</Info>
+
+## Auto-Refresh
+
+The calendar auto-refreshes to show changes:
+
+- **Color updates**: Every 3 seconds (checks for artist color changes)
+- **Live updates**: Changes made in other windows appear in real-time
+- **Conflict detection**: Prevents scheduling conflicts when multiple users edit simultaneously
+
+## Permissions
+
+Scheduling permissions by role:
+
+| Action | Admin | Assistant | Artist |
+|--------|-------|-----------|--------|
+| View all appointments | ✓ | ✓ | ✓ |
+| Create appointment | ✓ | ✓ | ✓ |
+| Edit any appointment | ✓ | ✓ | Own only |
+| Cancel appointment | ✓ | ✓ | Own only |
+| Delete appointment | ✓ | Requires elevation | ✗ |
+| Process payment | ✓ | ✓ | Own only |
+| Change artist | ✓ | ✓ | ✗ |
+| Export calendar | ✓ | ✓ | Own only |
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Prevent No-Shows">
+    - Send appointment reminders 24-48 hours before
+    - Require deposits for long sessions
+    - Mark repeated no-shows in client notes
+    - Use "Pending" status for unconfirmed bookings
+  </Accordion>
+  
+  <Accordion title="Optimize Scheduling">
+    - Book similar projects back-to-back for efficiency
+    - Leave buffer time between appointments for cleanup
+    - Schedule longer sessions during slower days
+    - Block out lunch breaks and personal time
+  </Accordion>
+  
+  <Accordion title="Track Cancellations">
+    - Always mark as "Canceled" rather than deleting
+    - Add cancellation reason in notes
+    - Track cancellation patterns per client
+    - Use cancellation data for policy decisions
+  </Accordion>
+  
+  <Accordion title="Manage Artist Workload">
+    - Use Week view to balance workload across artists
+    - Monitor completed sessions per artist
+    - Identify booking trends and adjust availability
+    - Prevent artist burnout with reasonable scheduling
+  </Accordion>
+</AccordionGroup>
+
+## Keyboard Shortcuts
+
+- **Escape** - Close open dialogs or return to list view
+- **Arrow keys** - Navigate calendar dates (when mini calendar focused)
+- **Enter** - Open selected appointment
+
+## Technical Details
+
+### Database Indexes
+
+Optimized queries with composite indexes:
+
+```sql
+INDEX ix_sessions_artist_time ON sessions (artist_id, start, end)
+```
+
+This enables fast lookups for:
+- Artist availability checks
+- Date range queries
+- Conflict detection
+
+### Session Storage
+
+Location: `data/studio.db` (SQLite)
+
+Table: `sessions`
+
+Relations:
+```
+TattooSession
+  ├── client (Many-to-One → Client)
+  ├── artist (Many-to-One → Artist) 
+  └── transactions (One-to-Many → Transaction)
+      └── Cascade delete on session removal
+```
+
+## Related Features
+
+- [Client Management](/features/client-management) - Client database integration
+- [Financial Tracking](/features/financial-tracking) - Payment processing and commissions
+- [Artist Portfolios](/features/artist-portfolios) - Link session photos to portfolios
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Appointments Not Showing">
+    **Check:**
+    - Artist filter - Make sure the artist checkbox is enabled
+    - Status filter - Verify "All" or appropriate status is selected
+    - Date range - Confirm you're viewing the correct date
+    - Search field - Clear any active search text
+  </Accordion>
+  
+  <Accordion title="Cannot Create Appointment">
+    **Possible causes:**
+    - Artist not selected (required field)
+    - Time conflict with existing appointment
+    - Invalid date/time range (end before start)
+    - Insufficient permissions for that artist
+  </Accordion>
+  
+  <Accordion title="Colors Not Displaying Correctly">
+    **Solutions:**
+    - Check `artist_colors.json` for syntax errors
+    - Verify artist IDs match database records
+    - Restart the application to reload color mappings
+    - Use hexadecimal color format: #RRGGBB
+  </Accordion>
+</AccordionGroup>
